@@ -1,42 +1,99 @@
-from pydantic import BaseModel
-from typing import List
+from datetime import datetime, timezone
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class MarketSnapshot(BaseModel):
-    symbol: str
-    name: str
-    price: float
+    """
+    Current market information for a cryptocurrency.
+    """
+
+    symbol: str = Field(
+        min_length=1,
+        max_length=20,
+    )
+
+    name: str = Field(
+        min_length=1,
+    )
+
+    price: float = Field(
+        gt=0,
+    )
+
     change_24h: float
-    volume_24h: float
-    market_cap: float
+
+    volume_24h: float = Field(
+        ge=0,
+    )
+
+    market_cap: float = Field(
+        ge=0,
+    )
+
+    @field_validator("symbol")
+    @classmethod
+    def normalize_symbol(
+        cls,
+        value: str,
+    ) -> str:
+
+        return value.strip().upper()
 
 
 class Candle(BaseModel):
-    timestamp: int
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
+    """
+    OHLCV market candle.
+    """
 
+    timestamp: int = Field(
+        gt=0,
+    )
 
-class IndicatorSnapshot(BaseModel):
-    rsi: float | None = None
+    open: float = Field(
+        gt=0,
+    )
 
-    macd: float | None = None
-    macd_signal: float | None = None
-    macd_histogram: float | None = None
+    high: float = Field(
+        gt=0,
+    )
 
-    ema_20: float | None = None
-    ema_50: float | None = None
-    ema_200: float | None = None
+    low: float = Field(
+        gt=0,
+    )
 
-    sma_20: float | None = None
-    sma_50: float | None = None
-    sma_200: float | None = None
+    close: float = Field(
+        gt=0,
+    )
 
-    bollinger_upper: float | None = None
-    bollinger_middle: float | None = None
-    bollinger_lower: float | None = None
+    volume: float = Field(
+        ge=0,
+    )
 
-    atr: float | None = None
+    @field_validator(
+        "high"
+    )
+    @classmethod
+    def validate_high(
+        cls,
+        value: float,
+    ) -> float:
+
+        return value
+
+    def timestamp_datetime(
+        self,
+    ) -> datetime:
+        """
+        Return candle timestamp as UTC datetime.
+        """
+
+        timestamp = self.timestamp
+
+        if timestamp > 10_000_000_000:
+            timestamp /= 1000
+
+        return datetime.fromtimestamp(
+            timestamp,
+            tz=timezone.utc,
+        )
