@@ -1,44 +1,15 @@
 import httpx
 
 from app.models.market import (
-    MarketSnapshot,
     Candle,
+    MarketSnapshot,
 )
 
-from app.data.cache import (
-    market_cache,
-    historical_cache,
-)
-
-from app.data.normalizer import (
-    normalize_symbol,
-)
-
-from app.data.validators import (
-    validate_candles,
-)
-
-
-# ============================================================
-# CONFIGURATION
-# ============================================================
 
 COINGECKO_URL = (
     "https://api.coingecko.com/api/v3"
 )
 
-
-REQUEST_TIMEOUT = httpx.Timeout(
-    connect=5.0,
-    read=20.0,
-    write=10.0,
-    pool=5.0,
-)
-
-
-# ============================================================
-# SUPPORTED COINS
-# ============================================================
 
 COIN_IDS = {
     "BTC": "bitcoin",
@@ -50,24 +21,57 @@ COIN_IDS = {
 
 
 # ============================================================
-# COIN LOOKUP
+# COIN ID
 # ============================================================
 
 def get_coin_id(
     symbol: str,
 ) -> str:
 
-    symbol = normalize_symbol(
+    normalized = (
         symbol
+        .upper()
+        .strip()
     )
 
-    if symbol not in COIN_IDS:
+    if normalized not in COIN_IDS:
 
         raise ValueError(
-            f"Unsupported cryptocurrency: {symbol}"
+            f"Unsupported cryptocurrency: "
+            f"{normalized}"
         )
 
-    return COIN_IDS[symbol]
+    return COIN_IDS[normalized]
+
+
+# ============================================================
+# HTTP CLIENT
+# ============================================================
+
+async def _get(
+    url: str,
+    params: dict,
+    timeout: float = 20,
+):
+
+    async with httpx.AsyncClient(
+        timeout=timeout,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": (
+                "Cryptolytics/0.4"
+            ),
+        },
+    ) as client:
+
+        response = await client.get(
+            url,
+            params=params,
+        )
+
+        response.raise_for_status()
+
+        return response.json()
 
 
 # ============================================================
@@ -78,33 +82,15 @@ async def get_market_snapshot(
     symbol: str,
 ) -> MarketSnapshot:
 
-    symbol = normalize_symbol(
+    normalized = (
         symbol
+        .upper()
+        .strip()
     )
 
     coin_id = get_coin_id(
-        symbol
+        normalized
     )
-
-    # --------------------------------------------------------
-    # CACHE
-    # --------------------------------------------------------
-
-    cache_key = (
-        f"market:{symbol}"
-    )
-
-    cached = market_cache.get(
-        cache_key
-    )
-
-    if cached is not None:
-
-        return cached
-
-    # --------------------------------------------------------
-    # REQUEST
-    # --------------------------------------------------------
 
     url = (
         f"{COINGECKO_URL}/coins/markets"
@@ -118,105 +104,54 @@ async def get_market_snapshot(
 
     try:
 
-        async with httpx.AsyncClient(
-            timeout=REQUEST_TIMEOUT
-        ) as client:
-
-            response = await client.get(
-                url,
-                params=params,
-            )
-
-            response.raise_for_status()
-
-            data = response.json()
-
-    except httpx.TimeoutException as error:
-
-        raise RuntimeError(
-            "CoinGecko request timed out."
-        ) from error
-
-    except httpx.HTTPStatusError as error:
-
-        raise RuntimeError(
-            "CoinGecko returned an HTTP error."
-        ) from error
+        data = await _get(
+            url,
+            params,
+            timeout=15,
+        )
 
     except httpx.HTTPError as error:
 
         raise RuntimeError(
-            "Unable to connect to CoinGecko."
+            "Market data provider "
+            "is unavailable."
         ) from error
-
-    # --------------------------------------------------------
-    # RESPONSE VALIDATION
-    # --------------------------------------------------------
 
     if not data:
 
         raise ValueError(
-            f"No market data returned for {symbol}"
+            f"No market data returned "
+            f"for {normalized}."
         )
 
     coin = data[0]
 
-    try:
+    return MarketSnapshot(
+        symbol=normalized,
 
-        snapshot = MarketSnapshot(
+        name=coin["name"],
 
-            symbol=symbol,
+        price=float(
+            coin["current_price"]
+        ),
 
-            name=coin["name"],
+        change_24h=float(
+            coin[
+                "price_change_percentage_24h"
+            ]
+            or 0
+        ),
 
-            price=float(
-                coin["current_price"]
-            ),
+        volume_24h=float(
+            coin["total_volume"]
+            or 0
+        ),
 
-            change_24h=float(
-                coin.get(
-                    "price_change_percentage_24h"
-                )
-                or 0
-            ),
-
-            volume_24h=float(
-                coin.get(
-                    "total_volume"
-                )
-                or 0
-            ),
-
-            market_cap=float(
-                coin.get(
-                    "market_cap"
-                )
-                or 0
-            ),
-
-        )
-
-    except (
-        KeyError,
-        TypeError,
-        ValueError,
-    ) as error:
-
-        raise RuntimeError(
-            "Invalid market data returned "
-            "by CoinGecko."
-        ) from error
-
-    # --------------------------------------------------------
-    # CACHE
-    # --------------------------------------------------------
-
-    market_cache.set(
-        cache_key,
-        snapshot,
+        market_cap=float(
+            coin["market_cap"]
+            or 0
+        ),
     )
-
-    return snapshot
 
 
 # ============================================================
@@ -228,22 +163,10 @@ async def get_historical_data(
     days: int = 30,
 ) -> list[Candle]:
 
-    symbol = normalize_symbol(
-        symbol
-    )
-
-    coin_id = get_coin_id(
-        symbol
-    )
-
-    # --------------------------------------------------------
-    # VALIDATE DAYS
-    # --------------------------------------------------------
-
-    if days <= 0:
+    if days < 1:
 
         raise ValueError(
-            "days must be greater than zero."
+            "days must be at least 1."
         )
 
     if days > 365:
@@ -252,25 +175,9 @@ async def get_historical_data(
             "days cannot exceed 365."
         )
 
-    # --------------------------------------------------------
-    # CACHE
-    # --------------------------------------------------------
-
-    cache_key = (
-        f"historical:{symbol}:{days}"
+    coin_id = get_coin_id(
+        symbol
     )
-
-    cached = historical_cache.get(
-        cache_key
-    )
-
-    if cached is not None:
-
-        return cached
-
-    # --------------------------------------------------------
-    # REQUEST
-    # --------------------------------------------------------
 
     url = (
         f"{COINGECKO_URL}/coins/"
@@ -284,82 +191,46 @@ async def get_historical_data(
 
     try:
 
-        async with httpx.AsyncClient(
-            timeout=REQUEST_TIMEOUT
-        ) as client:
-
-            response = await client.get(
-                url,
-                params=params,
-            )
-
-            response.raise_for_status()
-
-            data = response.json()
-
-    except httpx.TimeoutException as error:
-
-        raise RuntimeError(
-            "CoinGecko historical data "
-            "request timed out."
-        ) from error
-
-    except httpx.HTTPStatusError as error:
-
-        raise RuntimeError(
-            "CoinGecko returned an HTTP error "
-            "while retrieving historical data."
-        ) from error
+        data = await _get(
+            url,
+            params,
+            timeout=20,
+        )
 
     except httpx.HTTPError as error:
 
         raise RuntimeError(
-            "Unable to retrieve historical "
-            "data from CoinGecko."
+            "Historical market data "
+            "provider is unavailable."
         ) from error
-
-    # --------------------------------------------------------
-    # RESPONSE VALIDATION
-    # --------------------------------------------------------
 
     if not data:
 
         raise ValueError(
             f"No historical data returned "
-            f"for {symbol}."
+            f"for {symbol.upper()}."
         )
 
     candles: list[Candle] = []
 
-    # --------------------------------------------------------
-    # PARSE OHLC
-    # --------------------------------------------------------
-
     for row in data:
 
-        if not isinstance(
-            row,
-            list,
-        ):
-
-            continue
-
         if len(row) < 5:
-
             continue
 
-        (
-            timestamp,
-            open_price,
-            high,
-            low,
-            close,
-        ) = row[:5]
+        timestamp = row[0]
+
+        open_price = row[1]
+
+        high = row[2]
+
+        low = row[3]
+
+        close = row[4]
 
         try:
 
             candle = Candle(
-
                 timestamp=int(
                     timestamp
                 ),
@@ -381,37 +252,27 @@ async def get_historical_data(
                 ),
 
                 # CoinGecko's OHLC endpoint
-                # does not provide volume.
+                # does not provide candle volume.
                 volume=0.0,
-
             )
 
             candles.append(
                 candle
             )
 
-        except (
-            TypeError,
-            ValueError,
-        ):
-
+        except (TypeError, ValueError):
             continue
 
-    # --------------------------------------------------------
-    # VALIDATE CANDLES
-    # --------------------------------------------------------
+    if not candles:
 
-    candles = validate_candles(
-        candles
-    )
+        raise ValueError(
+            "No valid candles were "
+            "returned by the provider."
+        )
 
-    # --------------------------------------------------------
-    # CACHE
-    # --------------------------------------------------------
-
-    historical_cache.set(
-        cache_key,
-        candles,
+    candles.sort(
+        key=lambda candle:
+        candle.timestamp
     )
 
     return candles
