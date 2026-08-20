@@ -32,11 +32,20 @@ BASE_DIR = (
     .parent
 )
 
-FRONTEND_DIR = BASE_DIR / "frontend"
+FRONTEND_DIR = (
+    BASE_DIR
+    / "frontend"
+)
 
-STATIC_DIR = FRONTEND_DIR / "static"
+STATIC_DIR = (
+    FRONTEND_DIR
+    / "static"
+)
 
-TEMPLATES_DIR = FRONTEND_DIR / "templates"
+TEMPLATES_DIR = (
+    FRONTEND_DIR
+    / "templates"
+)
 
 
 # ============================================================
@@ -46,9 +55,10 @@ TEMPLATES_DIR = FRONTEND_DIR / "templates"
 app = FastAPI(
     title="Cryptolytics",
     description=(
-        "Cryptocurrency market analysis engine"
+        "Cryptocurrency market "
+        "analysis engine"
     ),
-    version="0.4.0",
+    version="0.5.0",
 )
 
 
@@ -85,6 +95,7 @@ templates = Jinja2Templates(
 async def dashboard(
     request: Request,
 ):
+
     return templates.TemplateResponse(
         "index.html",
         {
@@ -97,13 +108,15 @@ async def dashboard(
 # HEALTH CHECK
 # ============================================================
 
-@app.get("/api/health")
+@app.get(
+    "/api/health",
+)
 async def health():
 
     return {
         "status": "online",
         "service": "cryptolytics",
-        "version": "0.4.0",
+        "version": "0.5.0",
     }
 
 
@@ -111,21 +124,26 @@ async def health():
 # SYSTEM STATUS
 # ============================================================
 
-@app.get("/api/system")
+@app.get(
+    "/api/system",
+)
 async def system():
 
     return {
         "service": "cryptolytics",
+
         "status": "online",
 
         "analysis_engine": "online",
 
-        # Trading remains intentionally disabled.
+        # Trading intentionally disabled.
         "trading_engine": "disabled",
+
         "paper_trading": "disabled",
+
         "live_trading": "disabled",
 
-        "version": "0.4.0",
+        "version": "0.5.0",
     }
 
 
@@ -142,8 +160,10 @@ async def market(
 
     try:
 
-        snapshot = await get_market_snapshot(
-            symbol,
+        snapshot = (
+            await get_market_snapshot(
+                symbol,
+            )
         )
 
         return snapshot
@@ -169,7 +189,7 @@ async def market(
     except Exception as error:
 
         print(
-            f"[UNEXPECTED MARKET ERROR] "
+            "[UNEXPECTED MARKET ERROR] "
             f"{error}",
         )
 
@@ -205,15 +225,20 @@ async def candles(
 
     try:
 
-        data = await get_historical_data(
-            symbol,
-            days=days,
+        data = (
+            await get_historical_data(
+                symbol,
+                days=days,
+            )
         )
 
         return {
             "symbol": symbol.upper(),
+
             "period_days": days,
+
             "count": len(data),
+
             "candles": data,
         }
 
@@ -238,7 +263,7 @@ async def candles(
     except Exception as error:
 
         print(
-            f"[UNEXPECTED CANDLE ERROR] "
+            "[UNEXPECTED CANDLE ERROR] "
             f"{error}",
         )
 
@@ -284,6 +309,7 @@ async def analysis(
             )
         )
 
+
         # ----------------------------------------------------
         # HISTORICAL DATA
         # ----------------------------------------------------
@@ -295,29 +321,40 @@ async def analysis(
             )
         )
 
+
         # ----------------------------------------------------
         # TECHNICAL INDICATORS
         # ----------------------------------------------------
 
-        indicators = calculate_indicators(
-            historical_candles,
+        indicators = (
+            calculate_indicators(
+                historical_candles,
+            )
         )
+
 
         # ----------------------------------------------------
         # RESPONSE
         # ----------------------------------------------------
 
         return {
-            "symbol": market_data.symbol,
 
-            "period_days": days,
+            "symbol":
+                market_data.symbol,
 
-            "market": market_data,
+            "period_days":
+                days,
 
-            "candles": historical_candles,
+            "market":
+                market_data,
 
-            "indicators": indicators,
+            "candles":
+                historical_candles,
+
+            "indicators":
+                indicators,
         }
+
 
     except ValueError as error:
 
@@ -325,6 +362,7 @@ async def analysis(
             status_code=400,
             detail=str(error),
         ) from error
+
 
     except RuntimeError as error:
 
@@ -337,10 +375,11 @@ async def analysis(
             detail=str(error),
         ) from error
 
+
     except Exception as error:
 
         print(
-            f"[UNEXPECTED ANALYSIS ERROR] "
+            "[UNEXPECTED ANALYSIS ERROR] "
             f"{error}",
         )
 
