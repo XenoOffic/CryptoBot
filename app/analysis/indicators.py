@@ -1,27 +1,45 @@
-from typing import Sequence
+from __future__ import annotations
 
-from app.models.market import (
-    Candle,
-    IndicatorSnapshot,
-)
+from typing import Any
 
-
-def closes(candles: Sequence[Candle]) -> list[float]:
-    return [c.close for c in candles]
+from app.models.market import Candle
 
 
-def highs(candles: Sequence[Candle]) -> list[float]:
-    return [c.high for c in candles]
+# ============================================================
+# BASIC HELPERS
+# ============================================================
 
 
-def lows(candles: Sequence[Candle]) -> list[float]:
-    return [c.low for c in candles]
+def _closes(candles: list[Candle]) -> list[float]:
+    return [candle.close for candle in candles]
 
 
-def sma(
+def _highs(candles: list[Candle]) -> list[float]:
+    return [candle.high for candle in candles]
+
+
+def _lows(candles: list[Candle]) -> list[float]:
+    return [candle.low for candle in candles]
+
+
+def _volumes(candles: list[Candle]) -> list[float]:
+    return [candle.volume for candle in candles]
+
+
+# ============================================================
+# SIMPLE MOVING AVERAGE
+# ============================================================
+
+
+def calculate_sma(
     values: list[float],
     period: int,
 ) -> float | None:
+
+    if period <= 0:
+        raise ValueError(
+            "SMA period must be greater than zero."
+        )
 
     if len(values) < period:
         return None
@@ -31,165 +49,196 @@ def sma(
     return sum(window) / period
 
 
-def ema_series(
-    values: list[float],
-    period: int,
-) -> list[float]:
-
-    if not values:
-        return []
-
-    multiplier = 2 / (period + 1)
-
-    ema = values[0]
-
-    result = [ema]
-
-    for value in values[1:]:
-
-        ema = (
-            (value - ema)
-            * multiplier
-            + ema
-        )
-
-        result.append(ema)
-
-    return result
+# ============================================================
+# EXPONENTIAL MOVING AVERAGE
+# ============================================================
 
 
-def ema(
+def calculate_ema(
     values: list[float],
     period: int,
 ) -> float | None:
 
+    if period <= 0:
+        raise ValueError(
+            "EMA period must be greater than zero."
+        )
+
     if len(values) < period:
         return None
 
-    series = ema_series(
-        values,
-        period,
-    )
+    multiplier = 2 / (period + 1)
 
-    return series[-1]
+    ema = sum(values[:period]) / period
+
+    for value in values[period:]:
+        ema = (
+            (value - ema) * multiplier
+        ) + ema
+
+    return ema
 
 
-def rsi(
+# ============================================================
+# RSI
+# ============================================================
+
+
+def calculate_rsi(
     values: list[float],
     period: int = 14,
 ) -> float | None:
 
+    if period <= 0:
+        raise ValueError(
+            "RSI period must be greater than zero."
+        )
+
     if len(values) <= period:
         return None
 
-    gains = []
-    losses = []
+    gains: list[float] = []
+    losses: list[float] = []
 
-    for i in range(1, len(values)):
+    for index in range(1, len(values)):
 
         change = (
-            values[i]
-            - values[i - 1]
+            values[index]
+            - values[index - 1]
         )
 
-        gains.append(
-            max(change, 0)
-        )
+        if change > 0:
+            gains.append(change)
+            losses.append(0.0)
 
-        losses.append(
-            max(-change, 0)
-        )
+        else:
+            gains.append(0.0)
+            losses.append(abs(change))
 
-    avg_gain = (
-        sum(gains[:period])
-        / period
+    average_gain = (
+        sum(gains[:period]) / period
     )
 
-    avg_loss = (
-        sum(losses[:period])
-        / period
+    average_loss = (
+        sum(losses[:period]) / period
     )
 
-    for i in range(
+    for index in range(
         period,
         len(gains),
     ):
 
-        avg_gain = (
-            (avg_gain * (period - 1))
-            + gains[i]
+        average_gain = (
+            (
+                average_gain
+                * (period - 1)
+            )
+            + gains[index]
         ) / period
 
-        avg_loss = (
-            (avg_loss * (period - 1))
-            + losses[i]
+        average_loss = (
+            (
+                average_loss
+                * (period - 1)
+            )
+            + losses[index]
         ) / period
 
-    if avg_loss == 0:
+    if average_loss == 0:
         return 100.0
 
     relative_strength = (
-        avg_gain / avg_loss
-    )
-
-    return 100 - (
-        100 / (1 + relative_strength)
-    )
-
-
-def macd(
-    values: list[float],
-    fast: int = 12,
-    slow: int = 26,
-    signal: int = 9,
-):
-
-    if len(values) < slow:
-        return None, None, None
-
-    fast_series = ema_series(
-        values,
-        fast,
-    )
-
-    slow_series = ema_series(
-        values,
-        slow,
-    )
-
-    macd_series = []
-
-    for fast_value, slow_value in zip(
-        fast_series[-len(slow_series):],
-        slow_series,
-    ):
-        macd_series.append(
-            fast_value - slow_value
-        )
-
-    signal_series = ema_series(
-        macd_series,
-        signal,
+        average_gain / average_loss
     )
 
     return (
-        macd_series[-1],
-        signal_series[-1],
-        (
-            macd_series[-1]
-            - signal_series[-1]
-        ),
+        100
+        - (
+            100
+            / (1 + relative_strength)
+        )
     )
 
 
-def bollinger_bands(
+# ============================================================
+# MACD
+# ============================================================
+
+
+def calculate_macd(
+    values: list[float],
+    fast_period: int = 12,
+    slow_period: int = 26,
+    signal_period: int = 9,
+) -> dict[str, float | None]:
+
+    if len(values) < slow_period:
+        return {
+            "macd": None,
+            "signal": None,
+            "histogram": None,
+        }
+
+    fast_ema = calculate_ema(
+        values,
+        fast_period,
+    )
+
+    slow_ema = calculate_ema(
+        values,
+        slow_period,
+    )
+
+    if (
+        fast_ema is None
+        or slow_ema is None
+    ):
+        return {
+            "macd": None,
+            "signal": None,
+            "histogram": None,
+        }
+
+    macd_value = (
+        fast_ema - slow_ema
+    )
+
+    # For the first version we calculate
+    # the current MACD value.
+    #
+    # A full historical MACD series will be
+    # added when we build the signal engine.
+
+    return {
+        "macd": macd_value,
+        "signal": None,
+        "histogram": None,
+    }
+
+
+# ============================================================
+# BOLLINGER BANDS
+# ============================================================
+
+
+def calculate_bollinger_bands(
     values: list[float],
     period: int = 20,
-    deviations: float = 2.0,
-):
+    standard_deviations: float = 2.0,
+) -> dict[str, float | None]:
+
+    if period <= 0:
+        raise ValueError(
+            "Bollinger period must be greater than zero."
+        )
 
     if len(values) < period:
-        return None, None, None
+        return {
+            "middle": None,
+            "upper": None,
+            "lower": None,
+            "width": None,
+        }
 
     window = values[-period:]
 
@@ -208,90 +257,266 @@ def bollinger_bands(
 
     upper = (
         middle
-        + deviations * standard_deviation
+        + (
+            standard_deviations
+            * standard_deviation
+        )
     )
 
     lower = (
         middle
-        - deviations * standard_deviation
+        - (
+            standard_deviations
+            * standard_deviation
+        )
     )
 
-    return upper, middle, lower
+    width = None
+
+    if middle != 0:
+        width = (
+            (upper - lower)
+            / middle
+        )
+
+    return {
+        "middle": middle,
+        "upper": upper,
+        "lower": lower,
+        "width": width,
+    }
 
 
-def atr(
-    candles: Sequence[Candle],
+# ============================================================
+# ATR
+# ============================================================
+
+
+def calculate_atr(
+    candles: list[Candle],
     period: int = 14,
 ) -> float | None:
+
+    if period <= 0:
+        raise ValueError(
+            "ATR period must be greater than zero."
+        )
 
     if len(candles) <= period:
         return None
 
-    true_ranges = []
+    true_ranges: list[float] = []
 
-    for i in range(1, len(candles)):
+    for index, candle in enumerate(
+        candles
+    ):
 
-        current = candles[i]
-        previous = candles[i - 1]
+        if index == 0:
 
-        true_range = max(
-            current.high - current.low,
-            abs(
-                current.high
-                - previous.close
-            ),
-            abs(
-                current.low
-                - previous.close
-            ),
-        )
+            true_range = (
+                candle.high
+                - candle.low
+            )
+
+        else:
+
+            previous_close = (
+                candles[index - 1].close
+            )
+
+            true_range = max(
+                candle.high - candle.low,
+                abs(
+                    candle.high
+                    - previous_close
+                ),
+                abs(
+                    candle.low
+                    - previous_close
+                ),
+            )
 
         true_ranges.append(
             true_range
         )
 
-    if len(true_ranges) < period:
-        return None
+    return sum(
+        true_ranges[-period:]
+    ) / period
 
-    return (
-        sum(true_ranges[-period:])
-        / period
+
+# ============================================================
+# VOLUME ANALYSIS
+# ============================================================
+
+
+def calculate_volume_analysis(
+    candles: list[Candle],
+    period: int = 20,
+) -> dict[str, float | None]:
+
+    volumes = _volumes(candles)
+
+    if len(volumes) < period + 1:
+        return {
+            "current": None,
+            "average": None,
+            "ratio": None,
+        }
+
+    current = volumes[-1]
+
+    historical = volumes[
+        -(period + 1):-1
+    ]
+
+    average = (
+        sum(historical)
+        / len(historical)
     )
+
+    ratio = None
+
+    if average > 0:
+        ratio = current / average
+
+    return {
+        "current": current,
+        "average": average,
+        "ratio": ratio,
+    }
+
+
+# ============================================================
+# TREND
+# ============================================================
+
+
+def determine_trend(
+    candles: list[Candle],
+) -> str:
+
+    closes = _closes(candles)
+
+    if len(closes) < 50:
+        return "insufficient_data"
+
+    sma_20 = calculate_sma(
+        closes,
+        20,
+    )
+
+    sma_50 = calculate_sma(
+        closes,
+        50,
+    )
+
+    current_price = closes[-1]
+
+    if (
+        sma_20 is None
+        or sma_50 is None
+    ):
+        return "insufficient_data"
+
+    if (
+        current_price > sma_20
+        and sma_20 > sma_50
+    ):
+        return "bullish"
+
+    if (
+        current_price < sma_20
+        and sma_20 < sma_50
+    ):
+        return "bearish"
+
+    return "neutral"
+
+
+# ============================================================
+# MAIN ANALYSIS FUNCTION
+# ============================================================
 
 
 def calculate_indicators(
-    candles: Sequence[Candle],
-) -> IndicatorSnapshot:
+    candles: list[Candle],
+) -> dict[str, Any]:
 
-    values = closes(candles)
+    if not candles:
+        raise ValueError(
+            "Cannot calculate indicators "
+            "without candle data."
+        )
 
-    macd_value, macd_signal, macd_histogram = (
-        macd(values)
+    closes = _closes(candles)
+
+    current_price = closes[-1]
+
+    sma_20 = calculate_sma(
+        closes,
+        20,
     )
 
-    bb_upper, bb_middle, bb_lower = (
-        bollinger_bands(values)
+    sma_50 = calculate_sma(
+        closes,
+        50,
     )
 
-    return IndicatorSnapshot(
+    ema_20 = calculate_ema(
+        closes,
+        20,
+    )
 
-        rsi=rsi(values),
+    rsi = calculate_rsi(
+        closes,
+        14,
+    )
 
-        macd=macd_value,
-        macd_signal=macd_signal,
-        macd_histogram=macd_histogram,
+    macd = calculate_macd(
+        closes,
+    )
 
-        ema_20=ema(values, 20),
-        ema_50=ema(values, 50),
-        ema_200=ema(values, 200),
+    bollinger = calculate_bollinger_bands(
+        closes,
+        20,
+    )
 
-        sma_20=sma(values, 20),
-        sma_50=sma(values, 50),
-        sma_200=sma(values, 200),
+    atr = calculate_atr(
+        candles,
+        14,
+    )
 
-        bollinger_upper=bb_upper,
-        bollinger_middle=bb_middle,
-        bollinger_lower=bb_lower,
+    volume = calculate_volume_analysis(
+        candles,
+        20,
+    )
 
-        atr=atr(candles),
-  )
+    trend = determine_trend(
+        candles,
+    )
+
+    return {
+
+        "current_price": current_price,
+
+        "moving_averages": {
+            "sma_20": sma_20,
+            "sma_50": sma_50,
+            "ema_20": ema_20,
+        },
+
+        "momentum": {
+            "rsi_14": rsi,
+            "macd": macd,
+        },
+
+        "volatility": {
+            "atr_14": atr,
+            "bollinger_bands": bollinger,
+        },
+
+        "volume": volume,
+
+        "trend": trend,
+    }
