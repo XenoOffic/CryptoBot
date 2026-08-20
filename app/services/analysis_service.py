@@ -14,6 +14,11 @@ from app.analysis.volatility import (
     analyze_volatility,
 )
 
+from app.analysis.support_resistance import (
+    analyze_market_structure,
+    find_support_resistance,
+)
+
 from app.analysis.scoring import (
     build_score,
 )
@@ -32,67 +37,124 @@ async def analyze_crypto(
     symbol: str,
 ):
 
+    # ========================================================
+    # MARKET
+    # ========================================================
+
     market = await get_market_snapshot(
         symbol
     )
+
+    # ========================================================
+    # HISTORICAL DATA
+    # ========================================================
 
     candles = await get_historical_data(
         symbol,
         days=30,
     )
 
+    if not candles:
+
+        raise ValueError(
+            "No historical data available."
+        )
+
+    # ========================================================
+    # TECHNICAL INDICATORS
+    # ========================================================
+
     indicators = calculate_indicators(
         candles
     )
 
-    trend_score, trend_label, trend_obs = (
-        analyze_trend(
+    # ========================================================
+    # TREND
+    # ========================================================
+
+    (
+        trend_score,
+        trend_label,
+        trend_observations,
+    ) = analyze_trend(
+        market.price,
+        indicators,
+    )
+
+    # ========================================================
+    # MOMENTUM
+    # ========================================================
+
+    (
+        momentum_score,
+        momentum_label,
+        momentum_observations,
+    ) = analyze_momentum(
+        indicators,
+    )
+
+    # ========================================================
+    # VOLATILITY
+    # ========================================================
+
+    (
+        volatility_score,
+        volatility_label,
+        volatility_observations,
+    ) = analyze_volatility(
+        market.price,
+        indicators,
+    )
+
+    # ========================================================
+    # MARKET STRUCTURE
+    # ========================================================
+
+    (
+        structure_score,
+        structure_label,
+        structure_observations,
+    ) = analyze_market_structure(
+        candles
+    )
+
+    # ========================================================
+    # SUPPORT / RESISTANCE
+    # ========================================================
+
+    support_resistance = (
+        find_support_resistance(
+            candles,
             market.price,
-            indicators,
         )
     )
 
-    momentum_score, momentum_label, momentum_obs = (
-        analyze_momentum(
-            indicators,
-        )
-    )
-
-    volatility_score, volatility_label, volatility_obs = (
-        analyze_volatility(
-            market.price,
-            indicators,
-        )
-    )
-
-    # Struttura temporaneamente neutrale.
-    # La sostituiremo con il vero motore
-    # support/resistance.
-    structure_score = 50.0
-    structure_label = "NEUTRAL"
-    structure_obs = [
-        "Advanced market structure analysis "
-        "will be added next."
-    ]
+    # ========================================================
+    # SCORING
+    # ========================================================
 
     score = build_score(
 
         trend_score,
         trend_label,
-        trend_obs,
+        trend_observations,
 
         momentum_score,
         momentum_label,
-        momentum_obs,
+        momentum_observations,
 
         volatility_score,
         volatility_label,
-        volatility_obs,
+        volatility_observations,
 
         structure_score,
         structure_label,
-        structure_obs,
+        structure_observations,
     )
+
+    # ========================================================
+    # REPORT
+    # ========================================================
 
     report = generate_report(
         symbol=market.symbol,
@@ -100,9 +162,20 @@ async def analyze_crypto(
         score=score,
     )
 
+    # ========================================================
+    # RESULT
+    # ========================================================
+
     return {
         "market": market,
         "indicators": indicators,
+        "structure": {
+            "score": structure_score,
+            "label": structure_label,
+            "observations": structure_observations,
+        },
+        "support_resistance": support_resistance,
+        "score": score,
         "report": report,
         "candles": candles,
     }
