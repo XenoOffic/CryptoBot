@@ -2,23 +2,30 @@ from pathlib import Path
 
 from fastapi import (
     FastAPI,
-    Request,
     HTTPException,
+    Request,
 )
 
-from fastapi.responses import HTMLResponse
+from fastapi.responses import (
+    HTMLResponse,
+)
 
-from fastapi.staticfiles import StaticFiles
+from fastapi.staticfiles import (
+    StaticFiles,
+)
 
-from fastapi.templating import Jinja2Templates
+from fastapi.templating import (
+    Jinja2Templates,
+)
 
 
 from app.data.market_data import (
+    get_historical_data,
     get_market_snapshot,
 )
 
-from app.services.analysis_service import (
-    analyze_crypto,
+from app.analysis.indicators import (
+    calculate_indicators,
 )
 
 
@@ -26,13 +33,30 @@ from app.services.analysis_service import (
 # PATHS
 # ============================================================
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = (
+    Path(__file__)
+    .resolve()
+    .parent
+    .parent
+)
 
-FRONTEND_DIR = BASE_DIR / "frontend"
 
-STATIC_DIR = FRONTEND_DIR / "static"
+FRONTEND_DIR = (
+    BASE_DIR
+    / "frontend"
+)
 
-TEMPLATES_DIR = FRONTEND_DIR / "templates"
+
+STATIC_DIR = (
+    FRONTEND_DIR
+    / "static"
+)
+
+
+TEMPLATES_DIR = (
+    FRONTEND_DIR
+    / "templates"
+)
 
 
 # ============================================================
@@ -42,10 +66,10 @@ TEMPLATES_DIR = FRONTEND_DIR / "templates"
 app = FastAPI(
     title="Cryptolytics",
     description=(
-        "Cryptocurrency market analysis "
-        "and quantitative intelligence engine."
+        "Cryptocurrency market "
+        "analysis engine"
     ),
-    version="0.3.0",
+    version="0.4.0",
 )
 
 
@@ -72,7 +96,7 @@ templates = Jinja2Templates(
 
 
 # ============================================================
-# WEB ROUTES
+# DASHBOARD
 # ============================================================
 
 @app.get(
@@ -92,7 +116,7 @@ async def dashboard(
 
 
 # ============================================================
-# HEALTH
+# HEALTH CHECK
 # ============================================================
 
 @app.get("/api/health")
@@ -101,23 +125,49 @@ async def health():
     return {
         "status": "online",
         "service": "cryptolytics",
-        "version": "0.3.0",
+        "version": "0.4.0",
     }
 
 
 # ============================================================
-# MARKET DATA
+# SYSTEM STATUS
 # ============================================================
 
-@app.get("/api/market/{symbol}")
+@app.get("/api/system")
+async def system():
+
+    return {
+        "service": "cryptolytics",
+        "status": "online",
+
+        "analysis_engine": "online",
+
+        # Intentionally disabled.
+        "trading_engine": "disabled",
+        "paper_trading": "disabled",
+        "live_trading": "disabled",
+
+        "version": "0.4.0",
+    }
+
+
+# ============================================================
+# MARKET SNAPSHOT
+# ============================================================
+
+@app.get(
+    "/api/market/{symbol}"
+)
 async def market(
     symbol: str,
 ):
 
     try:
 
-        snapshot = await get_market_snapshot(
-            symbol
+        snapshot = (
+            await get_market_snapshot(
+                symbol
+            )
         )
 
         return snapshot
@@ -127,9 +177,9 @@ async def market(
         raise HTTPException(
             status_code=400,
             detail=str(error),
-        )
+        ) from error
 
-    except Exception as error:
+    except RuntimeError as error:
 
         print(
             f"[MARKET ERROR] {error}"
@@ -137,38 +187,87 @@ async def market(
 
         raise HTTPException(
             status_code=502,
-            detail=(
-                "Market data provider "
-                "unavailable."
-            ),
+            detail=str(error),
+        ) from error
+
+    except Exception as error:
+
+        print(
+            f"[UNEXPECTED MARKET ERROR] "
+            f"{error}"
         )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unexpected internal "
+                "server error."
+            ),
+        ) from error
 
 
 # ============================================================
 # FULL ANALYSIS
 # ============================================================
 
-@app.get("/api/analysis/{symbol}")
+@app.get(
+    "/api/analysis/{symbol}"
+)
 async def analysis(
     symbol: str,
 ):
 
     try:
 
-        result = await analyze_crypto(
-            symbol
+        # ----------------------------------------------------
+        # MARKET DATA
+        # ----------------------------------------------------
+
+        market = (
+            await get_market_snapshot(
+                symbol
+            )
         )
 
-        return result
+        # ----------------------------------------------------
+        # HISTORICAL DATA
+        # ----------------------------------------------------
+
+        candles = (
+            await get_historical_data(
+                symbol,
+                days=30,
+            )
+        )
+
+        # ----------------------------------------------------
+        # TECHNICAL INDICATORS
+        # ----------------------------------------------------
+
+        indicators = (
+            calculate_indicators(
+                candles
+            )
+        )
+
+        # ----------------------------------------------------
+        # RESPONSE
+        # ----------------------------------------------------
+
+        return {
+            "market": market,
+            "candles": candles,
+            "indicators": indicators,
+        }
 
     except ValueError as error:
 
         raise HTTPException(
             status_code=400,
             detail=str(error),
-        )
+        ) from error
 
-    except Exception as error:
+    except RuntimeError as error:
 
         print(
             f"[ANALYSIS ERROR] {error}"
@@ -176,8 +275,20 @@ async def analysis(
 
         raise HTTPException(
             status_code=502,
-            detail=(
-                "Unable to perform "
-                "market analysis."
-            ),
+            detail=str(error),
+        ) from error
+
+    except Exception as error:
+
+        print(
+            f"[UNEXPECTED ANALYSIS ERROR] "
+            f"{error}"
         )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to complete "
+                "cryptocurrency analysis."
+            ),
+        ) from error
