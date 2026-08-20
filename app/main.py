@@ -3,29 +3,21 @@ from pathlib import Path
 from fastapi import (
     FastAPI,
     HTTPException,
+    Query,
     Request,
 )
 
-from fastapi.responses import (
-    HTMLResponse,
-)
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
-from fastapi.staticfiles import (
-    StaticFiles,
+from app.analysis.indicators import (
+    calculate_indicators,
 )
-
-from fastapi.templating import (
-    Jinja2Templates,
-)
-
 
 from app.data.market_data import (
     get_historical_data,
     get_market_snapshot,
-)
-
-from app.analysis.indicators import (
-    calculate_indicators,
 )
 
 
@@ -40,23 +32,11 @@ BASE_DIR = (
     .parent
 )
 
+FRONTEND_DIR = BASE_DIR / "frontend"
 
-FRONTEND_DIR = (
-    BASE_DIR
-    / "frontend"
-)
+STATIC_DIR = FRONTEND_DIR / "static"
 
-
-STATIC_DIR = (
-    FRONTEND_DIR
-    / "static"
-)
-
-
-TEMPLATES_DIR = (
-    FRONTEND_DIR
-    / "templates"
-)
+TEMPLATES_DIR = FRONTEND_DIR / "templates"
 
 
 # ============================================================
@@ -66,8 +46,7 @@ TEMPLATES_DIR = (
 app = FastAPI(
     title="Cryptolytics",
     description=(
-        "Cryptocurrency market "
-        "analysis engine"
+        "Cryptocurrency market analysis engine"
     ),
     version="0.4.0",
 )
@@ -80,7 +59,7 @@ app = FastAPI(
 app.mount(
     "/static",
     StaticFiles(
-        directory=STATIC_DIR
+        directory=STATIC_DIR,
     ),
     name="static",
 )
@@ -91,7 +70,7 @@ app.mount(
 # ============================================================
 
 templates = Jinja2Templates(
-    directory=TEMPLATES_DIR
+    directory=TEMPLATES_DIR,
 )
 
 
@@ -106,7 +85,6 @@ templates = Jinja2Templates(
 async def dashboard(
     request: Request,
 ):
-
     return templates.TemplateResponse(
         "index.html",
         {
@@ -142,7 +120,7 @@ async def system():
 
         "analysis_engine": "online",
 
-        # Intentionally disabled.
+        # Trading remains intentionally disabled.
         "trading_engine": "disabled",
         "paper_trading": "disabled",
         "live_trading": "disabled",
@@ -156,7 +134,7 @@ async def system():
 # ============================================================
 
 @app.get(
-    "/api/market/{symbol}"
+    "/api/market/{symbol}",
 )
 async def market(
     symbol: str,
@@ -164,10 +142,8 @@ async def market(
 
     try:
 
-        snapshot = (
-            await get_market_snapshot(
-                symbol
-            )
+        snapshot = await get_market_snapshot(
+            symbol,
         )
 
         return snapshot
@@ -182,7 +158,7 @@ async def market(
     except RuntimeError as error:
 
         print(
-            f"[MARKET ERROR] {error}"
+            f"[MARKET ERROR] {error}",
         )
 
         raise HTTPException(
@@ -194,7 +170,7 @@ async def market(
 
         print(
             f"[UNEXPECTED MARKET ERROR] "
-            f"{error}"
+            f"{error}",
         )
 
         raise HTTPException(
@@ -207,25 +183,104 @@ async def market(
 
 
 # ============================================================
+# CANDLE DATA
+# ============================================================
+
+@app.get(
+    "/api/candles/{symbol}",
+)
+async def candles(
+    symbol: str,
+
+    days: int = Query(
+        default=30,
+        ge=1,
+        le=365,
+        description=(
+            "Historical candle period "
+            "in days."
+        ),
+    ),
+):
+
+    try:
+
+        data = await get_historical_data(
+            symbol,
+            days=days,
+        )
+
+        return {
+            "symbol": symbol.upper(),
+            "period_days": days,
+            "count": len(data),
+            "candles": data,
+        }
+
+    except ValueError as error:
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+
+    except RuntimeError as error:
+
+        print(
+            f"[CANDLE ERROR] {error}",
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(error),
+        ) from error
+
+    except Exception as error:
+
+        print(
+            f"[UNEXPECTED CANDLE ERROR] "
+            f"{error}",
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Unable to retrieve "
+                "candle data."
+            ),
+        ) from error
+
+
+# ============================================================
 # FULL ANALYSIS
 # ============================================================
 
 @app.get(
-    "/api/analysis/{symbol}"
+    "/api/analysis/{symbol}",
 )
 async def analysis(
     symbol: str,
+
+    days: int = Query(
+        default=30,
+        ge=1,
+        le=365,
+        description=(
+            "Historical analysis period "
+            "in days."
+        ),
+    ),
 ):
 
     try:
 
         # ----------------------------------------------------
-        # MARKET DATA
+        # CURRENT MARKET DATA
         # ----------------------------------------------------
 
-        market = (
+        market_data = (
             await get_market_snapshot(
-                symbol
+                symbol,
             )
         )
 
@@ -233,10 +288,10 @@ async def analysis(
         # HISTORICAL DATA
         # ----------------------------------------------------
 
-        candles = (
+        historical_candles = (
             await get_historical_data(
                 symbol,
-                days=30,
+                days=days,
             )
         )
 
@@ -244,10 +299,8 @@ async def analysis(
         # TECHNICAL INDICATORS
         # ----------------------------------------------------
 
-        indicators = (
-            calculate_indicators(
-                candles
-            )
+        indicators = calculate_indicators(
+            historical_candles,
         )
 
         # ----------------------------------------------------
@@ -255,8 +308,14 @@ async def analysis(
         # ----------------------------------------------------
 
         return {
-            "market": market,
-            "candles": candles,
+            "symbol": market_data.symbol,
+
+            "period_days": days,
+
+            "market": market_data,
+
+            "candles": historical_candles,
+
             "indicators": indicators,
         }
 
@@ -270,7 +329,7 @@ async def analysis(
     except RuntimeError as error:
 
         print(
-            f"[ANALYSIS ERROR] {error}"
+            f"[ANALYSIS ERROR] {error}",
         )
 
         raise HTTPException(
@@ -282,7 +341,7 @@ async def analysis(
 
         print(
             f"[UNEXPECTED ANALYSIS ERROR] "
-            f"{error}"
+            f"{error}",
         )
 
         raise HTTPException(
