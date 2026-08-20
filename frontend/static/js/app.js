@@ -1,3 +1,12 @@
+/* ============================================================
+   CRYPTOLYTICS — APPLICATION CONTROLLER
+   ============================================================ */
+
+
+/* ============================================================
+   START APPLICATION
+   ============================================================ */
+
 document.addEventListener(
     "DOMContentLoaded",
     () => {
@@ -12,6 +21,10 @@ document.addEventListener(
 );
 
 
+/* ============================================================
+   UI CONTROLS
+   ============================================================ */
+
 function setupControls() {
 
     const analyzeButton =
@@ -24,31 +37,56 @@ function setupControls() {
             "symbol-input"
         );
 
-    analyzeButton.addEventListener(
-        "click",
-        () => {
 
-            const symbol =
-                symbolInput.value
-                    .trim()
-                    .toUpperCase();
+    /* --------------------------------------------------------
+       ANALYZE BUTTON
+       -------------------------------------------------------- */
 
-            if (!symbol) {
-                return;
+    if (analyzeButton) {
+
+        analyzeButton.addEventListener(
+            "click",
+            () => {
+
+                analyzeSymbol();
+
             }
+        );
 
-            AppState.symbol =
-                symbol;
+    }
 
-            loadAnalysis();
 
-        }
-    );
+    /* --------------------------------------------------------
+       ENTER KEY
+       -------------------------------------------------------- */
 
+    if (symbolInput) {
+
+        symbolInput.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.key === "Enter"
+                ) {
+
+                    analyzeSymbol();
+
+                }
+
+            }
+        );
+
+    }
+
+
+    /* --------------------------------------------------------
+       SIDEBAR TIME BUTTONS
+       -------------------------------------------------------- */
 
     document
         .querySelectorAll(
-            "[data-days]"
+            ".time-buttons [data-days]"
         )
         .forEach(
             button => {
@@ -57,20 +95,8 @@ function setupControls() {
                     "click",
                     () => {
 
-                        document
-                            .querySelectorAll(
-                                "[data-days]"
-                            )
-                            .forEach(
-                                item =>
-                                    item.classList
-                                        .remove(
-                                            "active"
-                                        )
-                            );
-
-                        button.classList.add(
-                            "active"
+                        setActivePeriod(
+                            button.dataset.days
                         );
 
                         AppState.days =
@@ -85,20 +111,146 @@ function setupControls() {
 
             }
         );
+
+
+    /* --------------------------------------------------------
+       CHART TIME BUTTONS
+       -------------------------------------------------------- */
+
+    document
+        .querySelectorAll(
+            ".chart-controls [data-days]"
+        )
+        .forEach(
+            button => {
+
+                button.addEventListener(
+                    "click",
+                    () => {
+
+                        setActivePeriod(
+                            button.dataset.days
+                        );
+
+                        AppState.days =
+                            Number(
+                                button.dataset.days
+                            );
+
+                        loadAnalysis();
+
+                    }
+                );
+
+            }
+        );
+
 }
 
 
+/* ============================================================
+   ANALYZE SYMBOL
+   ============================================================ */
+
+function analyzeSymbol() {
+
+    const symbolInput =
+        document.getElementById(
+            "symbol-input"
+        );
+
+    if (!symbolInput) {
+        return;
+    }
+
+
+    const symbol =
+        symbolInput.value
+            .trim()
+            .toUpperCase();
+
+
+    if (!symbol) {
+
+        setLoading(
+            false,
+            "Enter a cryptocurrency symbol."
+        );
+
+        return;
+    }
+
+
+    AppState.symbol =
+        symbol;
+
+
+    loadAnalysis();
+
+}
+
+
+/* ============================================================
+   ACTIVE PERIOD
+   ============================================================ */
+
+function setActivePeriod(
+    days
+) {
+
+    const normalizedDays =
+        String(days);
+
+
+    /*
+     * Update BOTH sidebar and
+     * chart controls.
+     */
+
+    document
+        .querySelectorAll(
+            "[data-days]"
+        )
+        .forEach(
+            button => {
+
+                button.classList.toggle(
+                    "active",
+                    String(
+                        button.dataset.days
+                    ) === normalizedDays
+                );
+
+            }
+        );
+
+}
+
+
+/* ============================================================
+   LOAD ANALYSIS
+   ============================================================ */
+
 async function loadAnalysis() {
+
+    /*
+     * Prevent duplicate requests.
+     */
 
     if (AppState.loading) {
         return;
     }
 
-    AppState.loading = true;
+
+    AppState.loading =
+        true;
+
 
     setLoading(
-        true
+        true,
+        "Loading market data..."
     );
+
 
     try {
 
@@ -108,42 +260,89 @@ async function loadAnalysis() {
                 AppState.days
             );
 
+
+        /*
+         * Validate response.
+         */
+
+        if (
+            !data ||
+            !data.market
+        ) {
+
+            throw new Error(
+                "Invalid market data received."
+            );
+
+        }
+
+
+        /* ----------------------------------------------------
+           SAVE STATE
+           ---------------------------------------------------- */
+
         AppState.market =
             data.market;
 
         AppState.candles =
-            data.candles;
+            data.candles || [];
 
         AppState.indicators =
-            data.indicators;
+            data.indicators || {};
+
+
+        /* ----------------------------------------------------
+           RENDER MARKET
+           ---------------------------------------------------- */
 
         renderMarket(
             data.market
         );
 
+
+        /* ----------------------------------------------------
+           RENDER INDICATORS
+           ---------------------------------------------------- */
+
         renderIndicators(
             data.indicators
         );
 
+
+        /* ----------------------------------------------------
+           UPDATE CHART
+           ---------------------------------------------------- */
+
         updateChart(
-            data.candles
+            data.candles || []
         );
+
+
+        /* ----------------------------------------------------
+           SUCCESS STATUS
+           ---------------------------------------------------- */
 
         setLoading(
             false,
-            `${data.candles.length} candles loaded`
+            `${data.candles?.length || 0} candles loaded`
         );
+
 
     } catch (error) {
 
         console.error(
+            "[CRYPTOLYTICS]",
             error
         );
 
+
         setLoading(
             false,
-            error.message
+            getErrorMessage(
+                error
+            )
         );
+
 
     } finally {
 
@@ -151,103 +350,291 @@ async function loadAnalysis() {
             false;
 
     }
+
 }
 
+
+/* ============================================================
+   MARKET RENDERING
+   ============================================================ */
 
 function renderMarket(
     market
 ) {
 
-    document.getElementById(
-        "market-symbol"
-    ).textContent =
-        `${market.symbol} / USD`;
+    if (!market) {
+        return;
+    }
 
-    document.getElementById(
-        "price"
-    ).textContent =
-        formatPrice(
-            market.price
+
+    const symbolElement =
+        document.getElementById(
+            "market-symbol"
         );
 
-    document.getElementById(
-        "change"
-    ).textContent =
-        formatPercent(
-            market.change_24h
+    const priceElement =
+        document.getElementById(
+            "price"
         );
 
-    document.getElementById(
-        "market-cap"
-    ).textContent =
-        formatLargeNumber(
-            market.market_cap
+    const changeElement =
+        document.getElementById(
+            "change"
         );
 
-    document.getElementById(
-        "volume"
-    ).textContent =
-        formatLargeNumber(
-            market.volume_24h
+    const marketCapElement =
+        document.getElementById(
+            "market-cap"
         );
+
+    const volumeElement =
+        document.getElementById(
+            "volume"
+        );
+
+
+    if (symbolElement) {
+
+        symbolElement.textContent =
+            `${market.symbol} / USD`;
+
+    }
+
+
+    if (priceElement) {
+
+        priceElement.textContent =
+            formatPrice(
+                market.price
+            );
+
+    }
+
+
+    if (changeElement) {
+
+        changeElement.textContent =
+            formatPercent(
+                market.change_24h
+            );
+
+
+        /*
+         * Visual indication of
+         * positive / negative movement.
+         */
+
+        changeElement.classList.remove(
+            "positive",
+            "negative"
+        );
+
+
+        if (
+            Number(
+                market.change_24h
+            ) > 0
+        ) {
+
+            changeElement.classList.add(
+                "positive"
+            );
+
+        } else if (
+            Number(
+                market.change_24h
+            ) < 0
+        ) {
+
+            changeElement.classList.add(
+                "negative"
+            );
+
+        }
+
+    }
+
+
+    if (marketCapElement) {
+
+        marketCapElement.textContent =
+            formatLargeNumber(
+                market.market_cap
+            );
+
+    }
+
+
+    if (volumeElement) {
+
+        volumeElement.textContent =
+            formatLargeNumber(
+                market.volume_24h
+            );
+
+    }
+
 }
 
+
+/* ============================================================
+   INDICATORS RENDERING
+   ============================================================ */
 
 function renderIndicators(
     indicators
 ) {
 
+    if (!indicators) {
+        return;
+    }
+
+
     const movingAverages =
-        indicators.moving_averages;
+        indicators.moving_averages || {};
+
 
     const momentum =
-        indicators.momentum;
+        indicators.momentum || {};
+
 
     const volatility =
-        indicators.volatility;
+        indicators.volatility || {};
 
 
-    document.getElementById(
-        "rsi"
-    ).textContent =
-        formatNumber(
-            momentum.rsi_14
+    const rsiElement =
+        document.getElementById(
+            "rsi"
         );
 
-    document.getElementById(
-        "sma20"
-    ).textContent =
-        formatPrice(
-            movingAverages.sma_20
+    const sma20Element =
+        document.getElementById(
+            "sma20"
         );
 
-    document.getElementById(
-        "sma50"
-    ).textContent =
-        formatPrice(
-            movingAverages.sma_50
+    const sma50Element =
+        document.getElementById(
+            "sma50"
         );
 
-    document.getElementById(
-        "ema20"
-    ).textContent =
-        formatPrice(
-            movingAverages.ema_20
+    const ema20Element =
+        document.getElementById(
+            "ema20"
         );
 
-    document.getElementById(
-        "atr"
-    ).textContent =
-        formatPrice(
-            volatility.atr_14
+    const atrElement =
+        document.getElementById(
+            "atr"
         );
 
-    document.getElementById(
-        "trend"
-    ).textContent =
-        indicators.trend;
+    const trendElement =
+        document.getElementById(
+            "trend"
+        );
+
+
+    if (rsiElement) {
+
+        rsiElement.textContent =
+            formatNumber(
+                momentum.rsi_14
+            );
+
+    }
+
+
+    if (sma20Element) {
+
+        sma20Element.textContent =
+            formatPrice(
+                movingAverages.sma_20
+            );
+
+    }
+
+
+    if (sma50Element) {
+
+        sma50Element.textContent =
+            formatPrice(
+                movingAverages.sma_50
+            );
+
+    }
+
+
+    if (ema20Element) {
+
+        ema20Element.textContent =
+            formatPrice(
+                movingAverages.ema_20
+            );
+
+    }
+
+
+    if (atrElement) {
+
+        atrElement.textContent =
+            formatPrice(
+                volatility.atr_14
+            );
+
+    }
+
+
+    if (trendElement) {
+
+        trendElement.textContent =
+            indicators.trend || "—";
+
+
+        trendElement.classList.remove(
+            "positive",
+            "negative"
+        );
+
+
+        const trend =
+            String(
+                indicators.trend || ""
+            ).toLowerCase();
+
+
+        if (
+            trend.includes("bull")
+            ||
+            trend.includes("up")
+            ||
+            trend.includes("positive")
+        ) {
+
+            trendElement.classList.add(
+                "positive"
+            );
+
+        } else if (
+            trend.includes("bear")
+            ||
+            trend.includes("down")
+            ||
+            trend.includes("negative")
+        ) {
+
+            trendElement.classList.add(
+                "negative"
+            );
+
+        }
+
+    }
+
 }
 
+
+/* ============================================================
+   LOADING STATE
+   ============================================================ */
 
 function setLoading(
     loading,
@@ -259,16 +646,73 @@ function setLoading(
             "loading-status"
         );
 
+
     if (!element) {
         return;
     }
 
-    element.textContent =
-        loading
-            ? "Loading..."
-            : message;
+
+    if (loading) {
+
+        element.textContent =
+            message || "Loading...";
+
+        element.setAttribute(
+            "aria-busy",
+            "true"
+        );
+
+    } else {
+
+        element.textContent =
+            message;
+
+        element.setAttribute(
+            "aria-busy",
+            "false"
+        );
+
+    }
+
 }
 
+
+/* ============================================================
+   ERROR HANDLING
+   ============================================================ */
+
+function getErrorMessage(
+    error
+) {
+
+    if (!error) {
+
+        return (
+            "Unable to load market data."
+        );
+
+    }
+
+
+    if (
+        error.message
+    ) {
+
+        return error.message;
+
+    }
+
+
+    return (
+        "Unable to load market data."
+    );
+
+}
+
+
+/* ============================================================
+   PRICE FORMATTER
+   ============================================================ */
 
 function formatPrice(
     value
@@ -276,21 +720,62 @@ function formatPrice(
 
     if (
         value === null ||
-        value === undefined
+        value === undefined ||
+        !Number.isFinite(
+            Number(value)
+        )
     ) {
+
         return "—";
+
     }
+
+
+    const numericValue =
+        Number(value);
+
+
+    /*
+     * Crypto prices can have
+     * many decimals, especially
+     * for low-priced assets.
+     */
+
+    let maximumFractionDigits =
+        2;
+
+
+    if (
+        numericValue > 0 &&
+        numericValue < 1
+    ) {
+
+        maximumFractionDigits =
+            6;
+
+    }
+
 
     return new Intl.NumberFormat(
         "en-US",
         {
             style: "currency",
+
             currency: "USD",
-            maximumFractionDigits: 2,
+
+            maximumFractionDigits:
+                maximumFractionDigits,
         }
-    ).format(value);
+    ).format(
+        numericValue
+    );
+
 }
 
+
+/* ============================================================
+   NUMBER FORMATTER
+   ============================================================ */
 
 function formatNumber(
     value
@@ -298,15 +783,26 @@ function formatNumber(
 
     if (
         value === null ||
-        value === undefined
+        value === undefined ||
+        !Number.isFinite(
+            Number(value)
+        )
     ) {
+
         return "—";
+
     }
+
 
     return Number(value)
         .toFixed(2);
+
 }
 
+
+/* ============================================================
+   PERCENT FORMATTER
+   ============================================================ */
 
 function formatPercent(
     value
@@ -314,21 +810,37 @@ function formatPercent(
 
     if (
         value === null ||
-        value === undefined
+        value === undefined ||
+        !Number.isFinite(
+            Number(value)
+        )
     ) {
+
         return "—";
+
     }
 
+
+    const numericValue =
+        Number(value);
+
+
     const sign =
-        value >= 0
+        numericValue >= 0
             ? "+"
             : "";
 
+
     return (
-        `${sign}${Number(value).toFixed(2)}%`
+        `${sign}${numericValue.toFixed(2)}%`
     );
+
 }
 
+
+/* ============================================================
+   LARGE NUMBER FORMATTER
+   ============================================================ */
 
 function formatLargeNumber(
     value
@@ -336,16 +848,26 @@ function formatLargeNumber(
 
     if (
         value === null ||
-        value === undefined
+        value === undefined ||
+        !Number.isFinite(
+            Number(value)
+        )
     ) {
+
         return "—";
+
     }
+
 
     return new Intl.NumberFormat(
         "en-US",
         {
             notation: "compact",
+
             maximumFractionDigits: 2,
         }
-    ).format(value);
-        }
+    ).format(
+        Number(value)
+    );
+
+                    }
