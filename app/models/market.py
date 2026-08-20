@@ -4,9 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class MarketSnapshot(BaseModel):
-    """
-    Current market information for a cryptocurrency.
-    """
+    """Current market information."""
 
     symbol: str = Field(
         min_length=1,
@@ -42,9 +40,7 @@ class MarketSnapshot(BaseModel):
 
 
 class Candle(BaseModel):
-    """
-    OHLCV market candle.
-    """
+    """OHLCV market candle."""
 
     timestamp: int = Field(
         gt=0,
@@ -70,9 +66,7 @@ class Candle(BaseModel):
         ge=0,
     )
 
-    @field_validator(
-        "high"
-    )
+    @field_validator("high")
     @classmethod
     def validate_high(
         cls,
@@ -84,12 +78,10 @@ class Candle(BaseModel):
     def timestamp_datetime(
         self,
     ) -> datetime:
-        """
-        Return candle timestamp as UTC datetime.
-        """
 
         timestamp = self.timestamp
 
+        # Support milliseconds and seconds.
         if timestamp > 10_000_000_000:
             timestamp /= 1000
 
