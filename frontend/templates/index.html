@@ -1,7 +1,10 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta
         name="viewport"
         content="width=device-width, initial-scale=1.0"
@@ -11,213 +14,808 @@
 
     <link
         rel="stylesheet"
-        href="/static/css/main.css"
+        href="/static/css/app.css"
     >
+
 </head>
+
 
 <body>
 
-<div class="app">
+<div class="app-shell">
 
-    <header class="topbar">
+
+    <!-- =====================================================
+         SIDEBAR
+    ====================================================== -->
+
+    <aside class="sidebar">
 
         <div class="brand">
-            <div class="brand-icon">◈</div>
+
+            <div class="brand-mark">
+                C
+            </div>
+
             <div>
-                <div class="brand-name">CRYPTOLYTICS</div>
-                <div class="brand-subtitle">
-                    CRYPTO MARKET INTELLIGENCE
+
+                <div class="brand-name">
+                    Cryptolytics
                 </div>
-            </div>
-        </div>
 
-        <div class="system-status">
-            <span class="status-dot"></span>
-            SYSTEM ONLINE
-        </div>
+                <div class="brand-subtitle">
+                    Market Intelligence
+                </div>
 
-    </header>
-
-
-    <main>
-
-        <section class="hero">
-
-            <div class="eyebrow">
-                ADVANCED CRYPTO ANALYSIS
             </div>
 
-            <h1>
-                Understand the market.
-            </h1>
+        </div>
 
-            <p class="hero-description">
-                Analyze cryptocurrencies using market data,
-                technical indicators and quantitative signals.
-            </p>
+
+        <nav class="navigation">
+
+            <button
+                class="nav-item active"
+                type="button"
+            >
+                <span>◈</span>
+                Overview
+            </button>
+
+            <button
+                class="nav-item"
+                type="button"
+            >
+                <span>⌁</span>
+                Markets
+            </button>
+
+            <button
+                class="nav-item"
+                type="button"
+            >
+                <span>◉</span>
+                Analysis
+            </button>
+
+            <button
+                class="nav-item"
+                type="button"
+            >
+                <span>▦</span>
+                Backtesting
+            </button>
+
+        </nav>
+
+
+        <div class="sidebar-footer">
+
+            <div class="system-status">
+
+                <span class="status-dot"></span>
+
+                <div>
+
+                    <strong>System Online</strong>
+
+                    <small>
+                        Local Engine
+                    </small>
+
+                </div>
+
+            </div>
+
+            <div class="version">
+                v0.3.0
+            </div>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =====================================================
+         MAIN
+    ====================================================== -->
+
+    <main class="main-content">
+
+
+        <!-- HEADER -->
+
+        <header class="topbar">
+
+            <div>
+
+                <div class="eyebrow">
+                    CRYPTOCURRENCY ANALYSIS
+                </div>
+
+                <h1>
+                    Market Intelligence
+                </h1>
+
+            </div>
+
+
+            <div class="topbar-actions">
+
+                <div
+                    id="connection-status"
+                    class="connection-status"
+                >
+                    <span class="status-dot"></span>
+                    Connected
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- =================================================
+             SEARCH
+        ================================================== -->
+
+        <section class="search-panel">
+
+            <div class="search-copy">
+
+                <span class="search-label">
+                    ASSET
+                </span>
+
+                <strong>
+                    Analyze a cryptocurrency
+                </strong>
+
+                <small>
+                    Enter a supported symbol to generate
+                    a quantitative market report.
+                </small>
+
+            </div>
 
 
             <form
                 id="analysis-form"
-                class="search-box"
+                class="search-form"
             >
-
-                <div class="search-icon">
-                    ⌕
-                </div>
 
                 <input
                     id="symbol-input"
                     type="text"
-                    placeholder="Enter crypto symbol — BTC, ETH, SOL..."
+                    value="BTC"
+                    placeholder="BTC"
                     autocomplete="off"
-                    spellcheck="false"
+                    maxlength="20"
                 >
 
-                <button type="submit">
-                    ANALYZE
+                <button
+                    type="submit"
+                    id="analyze-button"
+                >
+                    Analyze
                     <span>→</span>
                 </button>
 
             </form>
 
+        </section>
 
-            <div class="quick-assets">
 
-                <button data-symbol="BTC">
-                    BTC
-                </button>
+        <!-- =================================================
+             LOADING
+        ================================================== -->
 
-                <button data-symbol="ETH">
-                    ETH
-                </button>
+        <div
+            id="loading"
+            class="loading hidden"
+        >
 
-                <button data-symbol="SOL">
-                    SOL
-                </button>
+            <div class="spinner"></div>
 
-                <button data-symbol="XRP">
-                    XRP
-                </button>
+            <span>
+                Fetching market data and calculating indicators...
+            </span>
 
-                <button data-symbol="DOGE">
-                    DOGE
-                </button>
+        </div>
+
+
+        <!-- =================================================
+             ERROR
+        ================================================== -->
+
+        <div
+            id="error-box"
+            class="error-box hidden"
+        ></div>
+
+
+        <!-- =================================================
+             ASSET HEADER
+        ================================================== -->
+
+        <section
+            id="asset-header"
+            class="asset-header hidden"
+        >
+
+            <div>
+
+                <div class="asset-symbol-row">
+
+                    <span
+                        id="asset-symbol"
+                        class="asset-symbol"
+                    >
+                        BTC
+                    </span>
+
+                    <span
+                        id="asset-name"
+                        class="asset-name"
+                    >
+                        Bitcoin
+                    </span>
+
+                </div>
+
+                <div class="asset-price-row">
+
+                    <span
+                        id="asset-price"
+                        class="asset-price"
+                    >
+                        —
+                    </span>
+
+                    <span
+                        id="asset-change"
+                        class="asset-change"
+                    >
+                        —
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="asset-meta">
+
+                <div>
+                    <span>Market Cap</span>
+                    <strong id="market-cap">—</strong>
+                </div>
+
+                <div>
+                    <span>24h Volume</span>
+                    <strong id="volume">—</strong>
+                </div>
 
             </div>
 
         </section>
 
 
-        <section class="dashboard-grid">
+        <!-- =================================================
+             SCORE GRID
+        ================================================== -->
 
-            <div class="card market-card">
+        <section
+            id="score-grid"
+            class="score-grid hidden"
+        >
+
+            <article class="score-card main-score">
 
                 <div class="card-header">
 
-                    <div>
-                        <div class="card-label">
-                            MARKET ENGINE
-                        </div>
+                    <span>
+                        OVERALL SCORE
+                    </span>
 
-                        <div class="card-title">
-                            Analysis workspace
-                        </div>
+                    <span class="card-icon">
+                        ◈
+                    </span>
+
+                </div>
+
+
+                <div class="score-value">
+
+                    <strong id="overall-score">
+                        —
+                    </strong>
+
+                    <span>/100</span>
+
+                </div>
+
+
+                <div
+                    id="overall-label"
+                    class="score-label"
+                >
+                    —
+                </div>
+
+
+                <div class="score-bar">
+
+                    <div
+                        id="overall-bar"
+                        class="score-bar-fill"
+                    ></div>
+
+                </div>
+
+            </article>
+
+
+            <article class="score-card">
+
+                <div class="card-header">
+                    <span>TREND</span>
+                    <span>↗</span>
+                </div>
+
+                <strong
+                    id="trend-score"
+                    class="component-score"
+                >
+                    —
+                </strong>
+
+                <span
+                    id="trend-label"
+                    class="component-label"
+                >
+                    —
+                </span>
+
+                <div class="mini-bar">
+                    <div id="trend-bar"></div>
+                </div>
+
+            </article>
+
+
+            <article class="score-card">
+
+                <div class="card-header">
+                    <span>MOMENTUM</span>
+                    <span>◒</span>
+                </div>
+
+                <strong
+                    id="momentum-score"
+                    class="component-score"
+                >
+                    —
+                </strong>
+
+                <span
+                    id="momentum-label"
+                    class="component-label"
+                >
+                    —
+                </span>
+
+                <div class="mini-bar">
+                    <div id="momentum-bar"></div>
+                </div>
+
+            </article>
+
+
+            <article class="score-card">
+
+                <div class="card-header">
+                    <span>VOLATILITY</span>
+                    <span>⌁</span>
+                </div>
+
+                <strong
+                    id="volatility-score"
+                    class="component-score"
+                >
+                    —
+                </strong>
+
+                <span
+                    id="volatility-label"
+                    class="component-label"
+                >
+                    —
+                </span>
+
+                <div class="mini-bar">
+                    <div id="volatility-bar"></div>
+                </div>
+
+            </article>
+
+
+            <article class="score-card">
+
+                <div class="card-header">
+                    <span>STRUCTURE</span>
+                    <span>◇</span>
+                </div>
+
+                <strong
+                    id="structure-score"
+                    class="component-score"
+                >
+                    —
+                </strong>
+
+                <span
+                    id="structure-label"
+                    class="component-label"
+                >
+                    —
+                </span>
+
+                <div class="mini-bar">
+                    <div id="structure-bar"></div>
+                </div>
+
+            </article>
+
+        </section>
+
+
+        <!-- =================================================
+             CONTENT GRID
+        ================================================== -->
+
+        <section
+            id="analysis-content"
+            class="content-grid hidden"
+        >
+
+
+            <!-- CHART -->
+
+            <article class="panel chart-panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <span class="panel-eyebrow">
+                            MARKET STRUCTURE
+                        </span>
+
+                        <h2>
+                            Price History
+                        </h2>
+
                     </div>
 
-                    <div class="badge">
-                        READY
+                    <span class="panel-badge">
+                        30D
+                    </span>
+
+                </div>
+
+
+                <div class="chart-wrapper">
+
+                    <canvas
+                        id="price-chart"
+                    ></canvas>
+
+                </div>
+
+            </article>
+
+
+            <!-- REPORT -->
+
+            <article class="panel report-panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <span class="panel-eyebrow">
+                            AI-READY ANALYSIS ENGINE
+                        </span>
+
+                        <h2>
+                            Market Assessment
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div class="assessment">
+
+                    <div class="assessment-row">
+
+                        <span>
+                            Market Bias
+                        </span>
+
+                        <strong
+                            id="market-bias"
+                        >
+                            —
+                        </strong>
+
+                    </div>
+
+
+                    <div class="assessment-row">
+
+                        <span>
+                            Confidence
+                        </span>
+
+                        <strong
+                            id="confidence"
+                        >
+                            —
+                        </strong>
+
+                    </div>
+
+                </div>
+
+
+                <div class="summary">
+
+                    <h3>
+                        Summary
+                    </h3>
+
+                    <p id="summary-text">
+                        —
+                    </p>
+
+                </div>
+
+            </article>
+
+
+        </section>
+
+
+        <!-- =================================================
+             INDICATORS
+        ================================================== -->
+
+        <section
+            id="indicators-panel"
+            class="panel hidden"
+        >
+
+            <div class="panel-header">
+
+                <div>
+
+                    <span class="panel-eyebrow">
+                        TECHNICAL ANALYSIS
+                    </span>
+
+                    <h2>
+                        Indicators
+                    </h2>
+
+                </div>
+
+            </div>
+
+
+            <div class="indicator-grid">
+
+
+                <div class="indicator">
+
+                    <span>RSI</span>
+
+                    <strong id="rsi">
+                        —
+                    </strong>
+
+                </div>
+
+
+                <div class="indicator">
+
+                    <span>MACD</span>
+
+                    <strong id="macd">
+                        —
+                    </strong>
+
+                </div>
+
+
+                <div class="indicator">
+
+                    <span>EMA 20</span>
+
+                    <strong id="ema20">
+                        —
+                    </strong>
+
+                </div>
+
+
+                <div class="indicator">
+
+                    <span>EMA 50</span>
+
+                    <strong id="ema50">
+                        —
+                    </strong>
+
+                </div>
+
+
+                <div class="indicator">
+
+                    <span>EMA 200</span>
+
+                    <strong id="ema200">
+                        —
+                    </strong>
+
+                </div>
+
+
+                <div class="indicator">
+
+                    <span>ATR</span>
+
+                    <strong id="atr">
+                        —
+                    </strong>
+
+                </div>
+
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             SUPPORT / RESISTANCE
+        ================================================== -->
+
+        <section
+            id="levels-panel"
+            class="levels-grid hidden"
+        >
+
+
+            <article class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <span class="panel-eyebrow">
+                            RESISTANCE
+                        </span>
+
+                        <h2>
+                            Key Resistance Levels
+                        </h2>
+
                     </div>
 
                 </div>
 
 
                 <div
-                    id="analysis-placeholder"
-                    class="placeholder"
-                >
+                    id="resistance-list"
+                    class="level-list"
+                ></div>
 
-                    <div class="placeholder-icon">
-                        ◈
-                    </div>
-
-                    <h2>
-                        Ready to analyze
-                    </h2>
-
-                    <p>
-                        Enter a cryptocurrency above to begin.
-                    </p>
-
-                </div>
-
-            </div>
+            </article>
 
 
-            <div class="card system-card">
+            <article class="panel">
 
-                <div class="card-header">
+                <div class="panel-header">
 
-                    <div class="card-label">
-                        SYSTEM
-                    </div>
+                    <div>
 
-                    <div class="live">
-                        LIVE
+                        <span class="panel-eyebrow">
+                            SUPPORT
+                        </span>
+
+                        <h2>
+                            Key Support Levels
+                        </h2>
+
                     </div>
 
                 </div>
 
 
-                <div class="system-list">
+                <div
+                    id="support-list"
+                    class="level-list"
+                ></div>
 
-                    <div class="system-row">
-                        <span>API</span>
-                        <strong>ONLINE</strong>
-                    </div>
+            </article>
 
-                    <div class="system-row">
-                        <span>ENGINE</span>
-                        <strong>READY</strong>
-                    </div>
-
-                    <div class="system-row">
-                        <span>MARKET DATA</span>
-                        <strong>CONNECTING</strong>
-                    </div>
-
-                    <div class="system-row">
-                        <span>TRADING</span>
-                        <strong class="disabled">
-                            DISABLED
-                        </strong>
-                    </div>
-
-                </div>
-
-            </div>
 
         </section>
 
+
+        <!-- =================================================
+             STRENGTHS / RISKS
+        ================================================== -->
+
+        <section
+            id="insights-panel"
+            class="insights-grid hidden"
+        >
+
+            <article class="panel">
+
+                <div class="panel-header">
+
+                    <h2>
+                        Strengths
+                    </h2>
+
+                </div>
+
+                <ul
+                    id="strengths-list"
+                    class="insight-list"
+                ></ul>
+
+            </article>
+
+
+            <article class="panel">
+
+                <div class="panel-header">
+
+                    <h2>
+                        Risks
+                    </h2>
+
+                </div>
+
+                <ul
+                    id="risks-list"
+                    class="insight-list"
+                ></ul>
+
+            </article>
+
+        </section>
+
+
     </main>
-
-
-    <footer>
-
-        <span>
-            CRYPTOLYTICS v0.1.0
-        </span>
-
-        <span>
-            LOCAL ANALYSIS ENVIRONMENT
-        </span>
-
-    </footer>
 
 </div>
 
 
-<script src="/static/js/app.js"></script>
+<script
+    src="https://cdn.jsdelivr.net/npm/chart.js"
+></script>
+
+<script
+    src="/static/js/app.js"
+></script>
 
 </body>
-                      </html>
+
+    </html>
