@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Cryptolytics</title>
+
+    <link
+        rel="stylesheet"
+        href="/static/css/main.css"
+    >
+</head>
+
+<body>
+
+<div class="app">
+
+    <header class="topbar">
+
+        <div class="brand">
+            <div class="brand-icon">◈</div>
+            <div>
+                <div class="brand-name">CRYPTOLYTICS</div>
+                <div class="brand-subtitle">
+                    CRYPTO MARKET INTELLIGENCE
+                </div>
+            </div>
+        </div>
+
+        <div class="system-status">
+            <span class="status-dot"></span>
+            SYSTEM ONLINE
+        </div>
+
+    </header>
+
+
+    <main>
+
+        <section class="hero">
+
+            <div class="eyebrow">
+                ADVANCED CRYPTO ANALYSIS
+            </div>
+
+            <h1>
+                Understand the market.
+            </h1>
+
+            <p class="hero-description">
+                Analyze cryptocurrencies using market data,
+                technical indicators and quantitative signals.
+            </p>
+
+
+            <form
+                id="analysis-form"
+                class="search-box"
+            >
+
+                <div class="search-icon">
+                    ⌕
+                </div>
+
+                <input
+                    id="symbol-input"
+                    type="text"
+                    placeholder="Enter crypto symbol — BTC, ETH, SOL..."
+                    autocomplete="off"
+                    spellcheck="false"
+                >
+
+                <button type="submit">
+                    ANALYZE
+                    <span>→</span>
+                </button>
+
+            </form>
+
+
+            <div class="quick-assets">
+
+                <button data-symbol="BTC">
+                    BTC
+                </button>
+
+                <button data-symbol="ETH">
+                    ETH
+                </button>
+
+                <button data-symbol="SOL">
+                    SOL
+                </button>
+
+                <button data-symbol="XRP">
+                    XRP
+                </button>
+
+                <button data-symbol="DOGE">
+                    DOGE
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <section class="dashboard-grid">
+
+            <div class="card market-card">
+
+                <div class="card-header">
+
+                    <div>
+                        <div class="card-label">
+                            MARKET ENGINE
+                        </div>
+
+                        <div class="card-title">
+                            Analysis workspace
+                        </div>
+                    </div>
+
+                    <div class="badge">
+                        READY
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="analysis-placeholder"
+                    class="placeholder"
+                >
+
+                    <div class="placeholder-icon">
+                        ◈
+                    </div>
+
+                    <h2>
+                        Ready to analyze
+                    </h2>
+
+                    <p>
+                        Enter a cryptocurrency above to begin.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div class="card system-card">
+
+                <div class="card-header">
+
+                    <div class="card-label">
+                        SYSTEM
+                    </div>
+
+                    <div class="live">
+                        LIVE
+                    </div>
+
+                </div>
+
+
+                <div class="system-list">
+
+                    <div class="system-row">
+                        <span>API</span>
+                        <strong>ONLINE</strong>
+                    </div>
+
+                    <div class="system-row">
+                        <span>ENGINE</span>
+                        <strong>READY</strong>
+                    </div>
+
+                    <div class="system-row">
+                        <span>MARKET DATA</span>
+                        <strong>CONNECTING</strong>
+                    </div>
+
+                    <div class="system-row">
+                        <span>TRADING</span>
+                        <strong class="disabled">
+                            DISABLED
+                        </strong>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+
+        <span>
+            CRYPTOLYTICS v0.1.0
+        </span>
+
+        <span>
+            LOCAL ANALYSIS ENVIRONMENT
+        </span>
+
+    </footer>
+
+</div>
+
+
+<script src="/static/js/app.js"></script>
+
+</body>
+                      </html>
