@@ -617,6 +617,12 @@ function updateChart(
     priceChart
         .timeScale()
         .fitContent();
+
+    priceChart
+        .priceScale("right")
+        .applyOptions({
+            autoScale: true,
+        });
 }
 
 
