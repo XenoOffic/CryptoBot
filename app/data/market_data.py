@@ -158,6 +158,10 @@ async def get_market_snapshot(
         normalized
     )
 
+    # --------------------------------------------------------
+    # REQUEST
+    # --------------------------------------------------------
+
     url = (
         f"{COINGECKO_URL}/coins/markets"
     )
@@ -182,6 +186,10 @@ async def get_market_snapshot(
         )
 
     coin = data[0]
+
+    # --------------------------------------------------------
+    # BUILD SNAPSHOT
+    # --------------------------------------------------------
 
     try:
 
@@ -238,111 +246,17 @@ async def get_market_snapshot(
 
 
 # ============================================================
-# HISTORICAL VOLUME DATA
-# ============================================================
-
-async def _get_historical_volumes(
-    coin_id: str,
-    days: int,
-) -> list[tuple[int, float]]:
-
-    url = (
-        f"{COINGECKO_URL}/coins/"
-        f"{coin_id}/market_chart"
-    )
-
-    params = {
-        "vs_currency": "usd",
-        "days": days,
-    }
-
-    data = await _get(
-        url,
-        params,
-        timeout=20,
-    )
-
-    volumes = data.get(
-        "total_volumes",
-        [],
-    )
-
-    result: list[
-        tuple[int, float]
-    ] = []
-
-    for row in volumes:
-
-        if not isinstance(
-            row,
-            list,
-        ):
-
-            continue
-
-        if len(row) < 2:
-            continue
-
-        try:
-
-            timestamp = int(
-                row[0]
-            )
-
-            volume = float(
-                row[1]
-            )
-
-            result.append(
-                (
-                    timestamp,
-                    volume,
-                )
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ):
-
-            continue
-
-    return result
-
-
-# ============================================================
-# MATCH VOLUME TO CANDLE
-# ============================================================
-
-def _find_nearest_volume(
-    candle_timestamp: int,
-    volumes: list[tuple[int, float]],
-) -> float:
-
-    if not volumes:
-        return 0.0
-
-    nearest_timestamp, nearest_volume = min(
-        volumes,
-        key=lambda item: abs(
-            item[0]
-            - candle_timestamp
-        ),
-    )
-
-    return float(
-        nearest_volume
-    )
-
-
-# ============================================================
-# HISTORICAL OHLC + VOLUME
+# HISTORICAL OHLC DATA
 # ============================================================
 
 async def get_historical_data(
     symbol: str,
     days: int = 30,
 ) -> list[Candle]:
+
+    # --------------------------------------------------------
+    # VALIDATE DAYS
+    # --------------------------------------------------------
 
     if days < 1:
 
@@ -355,6 +269,10 @@ async def get_historical_data(
         raise ValueError(
             "days cannot exceed 365."
         )
+
+    # --------------------------------------------------------
+    # NORMALIZE SYMBOL
+    # --------------------------------------------------------
 
     normalized = (
         symbol
@@ -386,7 +304,7 @@ async def get_historical_data(
     )
 
     # --------------------------------------------------------
-    # OHLC DATA
+    # OHLC ENDPOINT
     # --------------------------------------------------------
 
     ohlc_url = (
@@ -417,31 +335,12 @@ async def get_historical_data(
         )
 
     # --------------------------------------------------------
-    # FETCH VOLUMES
-    # --------------------------------------------------------
-
-    try:
-
-        volumes = (
-            await _get_historical_volumes(
-                coin_id,
-                days,
-            )
-        )
-
-    except RuntimeError as error:
-
-        # Volume is supplementary data.
-        # If unavailable, candles remain usable.
-        print(
-            "[VOLUME WARNING]",
-            error,
-        )
-
-        volumes = []
-
-    # --------------------------------------------------------
     # BUILD CANDLES
+    #
+    # IMPORTANT:
+    # Historical volume is intentionally not requested.
+    # This avoids an additional CoinGecko API request and
+    # reduces the probability of hitting the rate limit.
     # --------------------------------------------------------
 
     candles: list[Candle] = []
@@ -457,6 +356,10 @@ async def get_historical_data(
 
         if len(row) < 5:
             continue
+
+        # ----------------------------------------------------
+        # PARSE OHLC
+        # ----------------------------------------------------
 
         try:
 
@@ -504,19 +407,25 @@ async def get_historical_data(
 
             continue
 
-        # ----------------------------------------------------
-        # MATCH VOLUME
-        # ----------------------------------------------------
+        if (
+            open_price > high
+            or open_price < low
+        ):
 
-        volume = (
-            _find_nearest_volume(
-                timestamp,
-                volumes,
-            )
-        )
+            continue
+
+        if (
+            close > high
+            or close < low
+        ):
+
+            continue
 
         # ----------------------------------------------------
         # CREATE CANDLE
+        #
+        # Volume is unavailable because we intentionally
+        # avoid the additional market_chart API request.
         # ----------------------------------------------------
 
         candles.append(
@@ -532,7 +441,7 @@ async def get_historical_data(
 
                 close=close,
 
-                volume=volume,
+                volume=0.0,
             )
         )
 
@@ -557,7 +466,7 @@ async def get_historical_data(
     )
 
     # --------------------------------------------------------
-    # REMOVE DUPLICATE TIMESTAMPS
+    # REMOVE DUPLICATES
     # --------------------------------------------------------
 
     unique_candles: list[
