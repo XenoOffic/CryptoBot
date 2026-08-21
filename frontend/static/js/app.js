@@ -15,6 +15,10 @@ document.addEventListener(
 
         setupControls();
 
+        setActivePeriod(
+            AppState.days
+        );
+
         loadAnalysis();
 
     }
@@ -95,14 +99,20 @@ function setupControls() {
                     "click",
                     () => {
 
-                        setActivePeriod(
-                            button.dataset.days
-                        );
-
-                        AppState.days =
+                        const days =
                             Number(
                                 button.dataset.days
                             );
+
+
+                        AppState.days =
+                            days;
+
+
+                        setActivePeriod(
+                            days
+                        );
+
 
                         loadAnalysis();
 
@@ -128,14 +138,20 @@ function setupControls() {
                     "click",
                     () => {
 
-                        setActivePeriod(
-                            button.dataset.days
-                        );
-
-                        AppState.days =
+                        const days =
                             Number(
                                 button.dataset.days
                             );
+
+
+                        AppState.days =
+                            days;
+
+
+                        setActivePeriod(
+                            days
+                        );
+
 
                         loadAnalysis();
 
@@ -159,6 +175,7 @@ function analyzeSymbol() {
             "symbol-input"
         );
 
+
     if (!symbolInput) {
         return;
     }
@@ -169,6 +186,10 @@ function analyzeSymbol() {
             .trim()
             .toUpperCase();
 
+
+    /* --------------------------------------------------------
+       VALIDATE SYMBOL
+       -------------------------------------------------------- */
 
     if (!symbol) {
 
@@ -181,14 +202,9 @@ function analyzeSymbol() {
     }
 
 
-    /*
-     * If the symbol changed, clear the
-     * previous chart data first.
-     *
-     * This prevents the old crypto from
-     * visually remaining while the new
-     * data is loading.
-     */
+    /* --------------------------------------------------------
+       CHECK WHETHER CRYPTO CHANGED
+       -------------------------------------------------------- */
 
     const previousSymbol =
         AppState.symbol;
@@ -198,81 +214,51 @@ function analyzeSymbol() {
         symbol;
 
 
+    /*
+     * When switching from one cryptocurrency
+     * to another, immediately remove the old
+     * market data from the chart and state.
+     *
+     * This is especially important for assets
+     * with very different prices, for example:
+     *
+     * BTC  ~ $100,000
+     * DOGE ~ $0.07
+     */
+
     if (
         previousSymbol !== symbol
     ) {
 
-        resetChartView();
+        if (
+            typeof resetChartData ===
+            "function"
+        ) {
+
+            resetChartData();
+
+        }
+
+
+        AppState.market =
+            null;
+
+
+        AppState.candles =
+            [];
+
+
+        AppState.indicators =
+            null;
 
     }
 
+
+    /* --------------------------------------------------------
+       LOAD NEW MARKET
+       -------------------------------------------------------- */
 
     loadAnalysis();
-
-}
-
-
-/* ============================================================
-   RESET CHART VIEW
-   ============================================================ */
-
-function resetChartView() {
-
-    if (
-        typeof priceChart ===
-        "undefined"
-        ||
-        !priceChart
-    ) {
-        return;
-    }
-
-
-    /*
-     * Remove old data from all
-     * chart series.
-     */
-
-    if (candleSeries) {
-        candleSeries.setData([]);
-    }
-
-    if (volumeSeries) {
-        volumeSeries.setData([]);
-    }
-
-    if (sma20Series) {
-        sma20Series.setData([]);
-    }
-
-    if (sma50Series) {
-        sma50Series.setData([]);
-    }
-
-    if (ema20Series) {
-        ema20Series.setData([]);
-    }
-
-    if (bollingerMiddleSeries) {
-        bollingerMiddleSeries.setData([]);
-    }
-
-    if (bollingerUpperSeries) {
-        bollingerUpperSeries.setData([]);
-    }
-
-    if (bollingerLowerSeries) {
-        bollingerLowerSeries.setData([]);
-    }
-
-
-    /*
-     * Reset the visible time range.
-     */
-
-    priceChart
-        .timeScale()
-        .fitContent();
 
 }
 
@@ -341,6 +327,10 @@ async function loadAnalysis() {
 
     try {
 
+        /* ----------------------------------------------------
+           REQUEST FULL ANALYSIS
+           ---------------------------------------------------- */
+
         const data =
             await fetchAnalysis(
                 AppState.symbol,
@@ -348,9 +338,9 @@ async function loadAnalysis() {
             );
 
 
-        /*
-         * Validate response.
-         */
+        /* ----------------------------------------------------
+           VALIDATE RESPONSE
+           ---------------------------------------------------- */
 
         if (
             !data ||
@@ -371,8 +361,10 @@ async function loadAnalysis() {
         AppState.market =
             data.market;
 
+
         AppState.candles =
             data.candles || [];
+
 
         /*
          * Keep indicators as null when
@@ -416,11 +408,12 @@ async function loadAnalysis() {
            ---------------------------------------------------- */
 
         /*
-         * After changing from something like BTC to DOGE,
-         * the chart must adapt to the new price range.
+         * updateChart() already enables automatic
+         * price scaling.
          *
-         * requestAnimationFrame ensures the chart has already
-         * received the new series data before fitting it.
+         * requestAnimationFrame gives Lightweight
+         * Charts one rendering cycle before the final
+         * visible range is fitted.
          */
 
         if (
@@ -432,6 +425,13 @@ async function loadAnalysis() {
 
             requestAnimationFrame(
                 () => {
+
+                    priceChart
+                        .priceScale("right")
+                        .applyOptions({
+                            autoScale: true,
+                        });
+
 
                     priceChart
                         .timeScale()
@@ -518,6 +518,10 @@ function renderMarket(
         );
 
 
+    /* --------------------------------------------------------
+       SYMBOL
+       -------------------------------------------------------- */
+
     if (symbolElement) {
 
         symbolElement.textContent =
@@ -525,6 +529,10 @@ function renderMarket(
 
     }
 
+
+    /* --------------------------------------------------------
+       PRICE
+       -------------------------------------------------------- */
 
     if (priceElement) {
 
@@ -536,6 +544,10 @@ function renderMarket(
     }
 
 
+    /* --------------------------------------------------------
+       24H CHANGE
+       -------------------------------------------------------- */
+
     if (changeElement) {
 
         changeElement.textContent =
@@ -543,11 +555,6 @@ function renderMarket(
                 market.change_24h
             );
 
-
-        /*
-         * Visual indication of
-         * positive / negative movement.
-         */
 
         changeElement.classList.remove(
             "positive",
@@ -580,6 +587,10 @@ function renderMarket(
     }
 
 
+    /* --------------------------------------------------------
+       MARKET CAP
+       -------------------------------------------------------- */
+
     if (marketCapElement) {
 
         marketCapElement.textContent =
@@ -589,6 +600,10 @@ function renderMarket(
 
     }
 
+
+    /* --------------------------------------------------------
+       VOLUME
+       -------------------------------------------------------- */
 
     if (volumeElement) {
 
@@ -610,7 +625,16 @@ function renderIndicators(
     indicators
 ) {
 
+    /*
+     * If indicators are unavailable,
+     * clear the visible indicator values
+     * instead of keeping old crypto data.
+     */
+
     if (!indicators) {
+
+        clearIndicatorDisplay();
+
         return;
     }
 
@@ -658,6 +682,10 @@ function renderIndicators(
         );
 
 
+    /* --------------------------------------------------------
+       RSI
+       -------------------------------------------------------- */
+
     if (rsiElement) {
 
         rsiElement.textContent =
@@ -667,6 +695,10 @@ function renderIndicators(
 
     }
 
+
+    /* --------------------------------------------------------
+       SMA 20
+       -------------------------------------------------------- */
 
     if (sma20Element) {
 
@@ -678,6 +710,10 @@ function renderIndicators(
     }
 
 
+    /* --------------------------------------------------------
+       SMA 50
+       -------------------------------------------------------- */
+
     if (sma50Element) {
 
         sma50Element.textContent =
@@ -687,6 +723,10 @@ function renderIndicators(
 
     }
 
+
+    /* --------------------------------------------------------
+       EMA 20
+       -------------------------------------------------------- */
 
     if (ema20Element) {
 
@@ -698,6 +738,10 @@ function renderIndicators(
     }
 
 
+    /* --------------------------------------------------------
+       ATR
+       -------------------------------------------------------- */
+
     if (atrElement) {
 
         atrElement.textContent =
@@ -707,6 +751,10 @@ function renderIndicators(
 
     }
 
+
+    /* --------------------------------------------------------
+       TREND
+       -------------------------------------------------------- */
 
     if (trendElement) {
 
@@ -758,6 +806,56 @@ function renderIndicators(
 
 
 /* ============================================================
+   CLEAR INDICATOR DISPLAY
+   ============================================================ */
+
+function clearIndicatorDisplay() {
+
+    const ids = [
+
+        "rsi",
+
+        "sma20",
+
+        "sma50",
+
+        "ema20",
+
+        "atr",
+
+        "trend",
+
+    ];
+
+
+    ids.forEach(
+        id => {
+
+            const element =
+                document.getElementById(
+                    id
+                );
+
+
+            if (element) {
+
+                element.textContent =
+                    "—";
+
+                element.classList.remove(
+                    "positive",
+                    "negative"
+                );
+
+            }
+
+        }
+    );
+
+}
+
+
+/* ============================================================
    LOADING STATE
    ============================================================ */
 
@@ -782,6 +880,7 @@ function setLoading(
         element.textContent =
             message || "Loading...";
 
+
         element.setAttribute(
             "aria-busy",
             "true"
@@ -791,6 +890,7 @@ function setLoading(
 
         element.textContent =
             message;
+
 
         element.setAttribute(
             "aria-busy",
@@ -861,8 +961,17 @@ function formatPrice(
 
 
     /*
-     * More precision for cheap
-     * cryptocurrencies such as DOGE.
+     * Crypto prices can have very
+     * different magnitudes.
+     *
+     * BTC:
+     *     ~100000
+     *
+     * DOGE:
+     *     ~0.07
+     *
+     * Cheap assets therefore need
+     * additional decimal precision.
      */
 
     let maximumFractionDigits =
@@ -985,13 +1094,12 @@ function formatLargeNumber(
 
     return new Intl.NumberFormat(
         "en-US",
-        {
+       {
             notation: "compact",
 
             maximumFractionDigits: 2,
-        }
+       }
     ).format(
         Number(value)
     );
-
-               }
+}
