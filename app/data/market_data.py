@@ -4,6 +4,11 @@ from typing import Any
 
 import httpx
 
+from app.data.cache import (
+    market_cache,
+    historical_cache,
+)
+
 from app.models.market import (
     Candle,
     MarketSnapshot,
@@ -36,6 +41,7 @@ COIN_IDS = {
     "SOL": "solana",
     "XRP": "ripple",
     "DOGE": "dogecoin",
+    "DOGECOIN": "dogecoin",
 }
 
 
@@ -129,6 +135,25 @@ async def get_market_snapshot(
         .strip()
     )
 
+    # --------------------------------------------------------
+    # CACHE
+    # --------------------------------------------------------
+
+    cache_key = (
+        f"market:{normalized}"
+    )
+
+    cached = market_cache.get(
+        cache_key
+    )
+
+    if cached is not None:
+        return cached
+
+    # --------------------------------------------------------
+    # COIN ID
+    # --------------------------------------------------------
+
     coin_id = get_coin_id(
         normalized
     )
@@ -160,7 +185,7 @@ async def get_market_snapshot(
 
     try:
 
-        return MarketSnapshot(
+        snapshot = MarketSnapshot(
             symbol=normalized,
 
             name=str(
@@ -199,6 +224,17 @@ async def get_market_snapshot(
             "Invalid market data "
             "received from provider."
         ) from error
+
+    # --------------------------------------------------------
+    # SAVE TO CACHE
+    # --------------------------------------------------------
+
+    market_cache.set(
+        cache_key,
+        snapshot,
+    )
+
+    return snapshot
 
 
 # ============================================================
@@ -326,10 +362,28 @@ async def get_historical_data(
         .strip()
     )
 
+    # --------------------------------------------------------
+    # CACHE
+    # --------------------------------------------------------
+
+    cache_key = (
+        f"historical:{normalized}:{days}"
+    )
+
+    cached = historical_cache.get(
+        cache_key
+    )
+
+    if cached is not None:
+        return cached
+
+    # --------------------------------------------------------
+    # COIN ID
+    # --------------------------------------------------------
+
     coin_id = get_coin_id(
         normalized
     )
-
 
     # --------------------------------------------------------
     # OHLC DATA
@@ -344,7 +398,6 @@ async def get_historical_data(
         "vs_currency": "usd",
         "days": days,
     }
-
 
     # --------------------------------------------------------
     # FETCH OHLC
@@ -362,7 +415,6 @@ async def get_historical_data(
             f"No historical data returned "
             f"for {normalized}."
         )
-
 
     # --------------------------------------------------------
     # FETCH VOLUMES
@@ -387,7 +439,6 @@ async def get_historical_data(
         )
 
         volumes = []
-
 
     # --------------------------------------------------------
     # BUILD CANDLES
@@ -436,7 +487,6 @@ async def get_historical_data(
 
             continue
 
-
         # ----------------------------------------------------
         # BASIC VALIDATION
         # ----------------------------------------------------
@@ -454,7 +504,6 @@ async def get_historical_data(
 
             continue
 
-
         # ----------------------------------------------------
         # MATCH VOLUME
         # ----------------------------------------------------
@@ -465,7 +514,6 @@ async def get_historical_data(
                 volumes,
             )
         )
-
 
         # ----------------------------------------------------
         # CREATE CANDLE
@@ -488,7 +536,6 @@ async def get_historical_data(
             )
         )
 
-
     # --------------------------------------------------------
     # VALIDATE RESULT
     # --------------------------------------------------------
@@ -500,7 +547,6 @@ async def get_historical_data(
             "returned by the provider."
         )
 
-
     # --------------------------------------------------------
     # SORT CHRONOLOGICALLY
     # --------------------------------------------------------
@@ -509,7 +555,6 @@ async def get_historical_data(
         key=lambda candle:
         candle.timestamp
     )
-
 
     # --------------------------------------------------------
     # REMOVE DUPLICATE TIMESTAMPS
@@ -537,5 +582,13 @@ async def get_historical_data(
             candle
         )
 
+    # --------------------------------------------------------
+    # SAVE TO CACHE
+    # --------------------------------------------------------
+
+    historical_cache.set(
+        cache_key,
+        unique_candles,
+    )
 
     return unique_candles
