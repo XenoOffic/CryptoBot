@@ -1,7 +1,15 @@
+/* ============================================================
+   CRYPTOLYTICS — CHART CONTROLLER
+   ============================================================ */
+
+
+/* ============================================================
+   CHART STATE
+   ============================================================ */
+
 let priceChart = null;
 
 let candleSeries = null;
-
 let volumeSeries = null;
 
 let sma20Series = null;
@@ -24,10 +32,15 @@ function initializeChart() {
             "chart-container"
         );
 
+
     if (!container) {
         return;
     }
 
+
+    /* --------------------------------------------------------
+       CHECK LIGHTWEIGHT CHARTS
+       -------------------------------------------------------- */
 
     if (
         typeof LightweightCharts ===
@@ -54,47 +67,17 @@ function initializeChart() {
         return;
     }
 
-function resetChartData() {
-    if (candleSeries) {
-        candleSeries.setData([]);
-    }
-   
-    if (volumeSeries) {
-        volumeSeries.setData([]);
-    }
 
-    if (sma20Series) {
-        sma20Series.setData([])
-    }
-
-    if (sma50Series) {
-        sma50Series.setData([]);
-    }
-
-    if (ema20Series) {
-        ema20Series.setData([]);
-    }
-
-    if (bollingerMiddleSeries) {
-        bollingerMiddleSeries.setData([]);
-    }
-
-    if (bollingerUpperSeries) {
-        bollingerUpperSeries.setData([]);
-    }
-
-    if (bollingerLowerSeries) {
-        bollingerLowerSeries.setData([]);
-    }
-}
-
+    /* --------------------------------------------------------
+       CLEAR CONTAINER
+       -------------------------------------------------------- */
 
     container.innerHTML = "";
 
 
     /* ========================================================
        MAIN CHART
-        re======================================================== */
+       ======================================================== */
 
     priceChart =
         LightweightCharts.createChart(
@@ -137,6 +120,9 @@ function resetChartData() {
                     borderColor:
                         "#252d3b",
 
+                    autoScale:
+                        true,
+
                     scaleMargins: {
 
                         top: 0.08,
@@ -167,16 +153,49 @@ function resetChartData() {
                         price
                     ) => {
 
+                        if (
+                            !Number.isFinite(
+                                Number(price)
+                            )
+                        ) {
+
+                            return "";
+                        }
+
+
+                        const numericPrice =
+                            Number(price);
+
+
+                        let maximumFractionDigits =
+                            2;
+
+
+                        /*
+                         * Low-priced cryptocurrencies
+                         * such as DOGE need more decimals.
+                         */
+
+                        if (
+                            numericPrice > 0 &&
+                            numericPrice < 1
+                        ) {
+
+                            maximumFractionDigits =
+                                6;
+                        }
+
+
                         return new Intl
                             .NumberFormat(
                                 "en-US",
                                 {
                                     maximumFractionDigits:
-                                        2,
+                                        maximumFractionDigits,
                                 }
                             )
                             .format(
-                                price
+                                numericPrice
                             );
                     },
                 },
@@ -361,15 +380,19 @@ function resetChartData() {
             {
 
                 priceFormat: {
+
                     type: "volume",
                 },
 
                 priceScaleId:
                     "volume",
-
             }
         );
 
+
+    /* --------------------------------------------------------
+       VOLUME SCALE
+       -------------------------------------------------------- */
 
     priceChart
         .priceScale("volume")
@@ -382,18 +405,117 @@ function resetChartData() {
 
                     bottom: 0,
                 },
-
             }
         );
 
 
+    /* --------------------------------------------------------
+       INITIAL RESIZE
+       -------------------------------------------------------- */
+
     resizeChart();
 
+
+    /* --------------------------------------------------------
+       WINDOW RESIZE
+       -------------------------------------------------------- */
 
     window.addEventListener(
         "resize",
         resizeChart
     );
+}
+
+
+/* ============================================================
+   RESET CHART DATA
+   ============================================================ */
+
+/*
+ * Clears all current market data from the chart.
+ *
+ * This is intentionally outside initializeChart()
+ * so app.js can call it when the cryptocurrency changes.
+ */
+
+function resetChartData() {
+
+    if (candleSeries) {
+
+        candleSeries.setData(
+            []
+        );
+    }
+
+
+    if (volumeSeries) {
+
+        volumeSeries.setData(
+            []
+        );
+    }
+
+
+    if (sma20Series) {
+
+        sma20Series.setData(
+            []
+        );
+    }
+
+
+    if (sma50Series) {
+
+        sma50Series.setData(
+            []
+        );
+    }
+
+
+    if (ema20Series) {
+
+        ema20Series.setData(
+            []
+        );
+    }
+
+
+    if (bollingerMiddleSeries) {
+
+        bollingerMiddleSeries.setData(
+            []
+        );
+    }
+
+
+    if (bollingerUpperSeries) {
+
+        bollingerUpperSeries.setData(
+            []
+        );
+    }
+
+
+    if (bollingerLowerSeries) {
+
+        bollingerLowerSeries.setData(
+            []
+        );
+    }
+
+
+    if (priceChart) {
+
+        priceChart
+            .timeScale()
+            .fitContent();
+
+        priceChart
+            .priceScale("right")
+            .applyOptions({
+                autoScale: true,
+            });
+    }
 }
 
 
@@ -409,9 +531,10 @@ function updateChart(
     if (
         !priceChart ||
         !candleSeries ||
-        !candles ||
+        !Array.isArray(candles) ||
         !candles.length
     ) {
+
         return;
     }
 
@@ -432,8 +555,8 @@ function updateChart(
 
 
                     /*
-                     * Lightweight Charts
-                     * expects Unix seconds.
+                     * Lightweight Charts expects
+                     * Unix timestamps in seconds.
                      */
 
                     if (
@@ -477,22 +600,31 @@ function updateChart(
             )
             .filter(
                 candle =>
+
                     Number.isFinite(
                         candle.time
                     )
+
                     &&
+
                     Number.isFinite(
                         candle.open
                     )
+
                     &&
+
                     Number.isFinite(
                         candle.high
                     )
+
                     &&
+
                     Number.isFinite(
                         candle.low
                     )
+
                     &&
+
                     Number.isFinite(
                         candle.close
                     )
@@ -518,6 +650,7 @@ function updateChart(
                 candle.time
             )
         ) {
+
             continue;
         }
 
@@ -533,6 +666,10 @@ function updateChart(
     }
 
 
+    /* --------------------------------------------------------
+       CHRONOLOGICAL ORDER
+       -------------------------------------------------------- */
+
     uniqueData.sort(
         (
             a,
@@ -541,6 +678,10 @@ function updateChart(
             a.time - b.time
     );
 
+
+    /* --------------------------------------------------------
+       SET CANDLES
+       -------------------------------------------------------- */
 
     candleSeries.setData(
         uniqueData
@@ -594,6 +735,17 @@ function updateChart(
                     }
 
 
+                    const open =
+                        Number(
+                            candle.open
+                        );
+
+                    const close =
+                        Number(
+                            candle.close
+                        );
+
+
                     return {
 
                         time:
@@ -603,27 +755,19 @@ function updateChart(
                             volume,
 
                         color:
-                            Number(
-                                candle.close
-                            )
-                            >=
-                            Number(
-                                candle.open
-                            )
+                            close >= open
                                 ? "#26a69a"
                                 : "#ef5350",
                     };
                 }
             )
             .filter(
-                item => item !== null
+                item =>
+                    item !== null
             );
 
 
-    if (
-        volumeSeries &&
-        volumeData.length
-    ) {
+    if (volumeSeries) {
 
         volumeSeries.setData(
             volumeData
@@ -641,22 +785,40 @@ function updateChart(
             candles,
             indicators
         );
+
+    } else {
+
+        /*
+         * If indicators are unavailable,
+         * clear old indicator lines.
+         */
+
+        clearIndicatorSeries();
     }
 
 
     /* ========================================================
-       FIT CONTENT
+       FIT NEW MARKET DATA
        ======================================================== */
 
-    priceChart
-        .timeScale()
-        .fitContent();
+    /*
+     * This is important when switching from
+     * BTC (~100,000 USD) to DOGE (~0.07 USD).
+     *
+     * The chart recalculates its visible range
+     * using the new asset's actual price.
+     */
 
     priceChart
         .priceScale("right")
         .applyOptions({
             autoScale: true,
         });
+
+
+    priceChart
+        .timeScale()
+        .fitContent();
 }
 
 
@@ -670,6 +832,9 @@ function updateIndicatorSeries(
 ) {
 
     if (!indicators) {
+
+        clearIndicatorSeries();
+
         return;
     }
 
@@ -684,55 +849,76 @@ function updateIndicatorSeries(
             .volatility;
 
 
-    if (!movingAverages) {
-        return;
+    /* ========================================================
+       MOVING AVERAGES
+       ======================================================== */
+
+    if (
+        movingAverages &&
+        movingAverages.series
+    ) {
+
+        const maSeries =
+            movingAverages.series;
+
+
+        /* ----------------------------------------------------
+           SMA 20
+           ---------------------------------------------------- */
+
+        setLineSeriesData(
+            sma20Series,
+            candles,
+            maSeries.sma_20
+        );
+
+
+        /* ----------------------------------------------------
+           SMA 50
+           ---------------------------------------------------- */
+
+        setLineSeriesData(
+            sma50Series,
+            candles,
+            maSeries.sma_50
+        );
+
+
+        /* ----------------------------------------------------
+           EMA 20
+           ---------------------------------------------------- */
+
+        setLineSeriesData(
+            ema20Series,
+            candles,
+            maSeries.ema_20
+        );
+
+    } else {
+
+        if (sma20Series) {
+
+            sma20Series.setData(
+                []
+            );
+        }
+
+
+        if (sma50Series) {
+
+            sma50Series.setData(
+                []
+            );
+        }
+
+
+        if (ema20Series) {
+
+            ema20Series.setData(
+                []
+            );
+        }
     }
-
-
-    /* ========================================================
-       MOVING AVERAGE DATA
-       ======================================================== */
-
-    const maSeries =
-        movingAverages.series;
-
-
-    if (!maSeries) {
-        return;
-    }
-
-
-    /* ========================================================
-       SMA 20
-       ======================================================== */
-
-    setLineSeriesData(
-        sma20Series,
-        candles,
-        maSeries.sma_20
-    );
-
-
-    /* ========================================================
-       SMA 50
-       ======================================================== */
-
-    setLineSeriesData(
-        sma50Series,
-        candles,
-        maSeries.sma_50
-    );
-
-
-    /* ========================================================
-       EMA 20
-       ======================================================== */
-
-    setLineSeriesData(
-        ema20Series,
-        candles,
-        maSeries.ema_20
-    );
 
 
     /* ========================================================
@@ -741,172 +927,30 @@ function updateIndicatorSeries(
 
     if (
         volatility &&
-        volatility.bollinger_bands
+        volatility.bollinger_bands &&
+        volatility
+            .bollinger_bands
+            .series
     ) {
-
-        const bollinger =
-            volatility
-                .bollinger_bands;
-
 
         const series =
-            bollinger.series;
+            volatility
+                .bollinger_bands
+                .series;
 
 
-        if (series) {
+        /* ----------------------------------------------------
+           MIDDLE
+           ---------------------------------------------------- */
 
-            setLineSeriesData(
-                bollingerMiddleSeries,
-                candles,
-                series.middle
-            );
-
-
-            setLineSeriesData(
-                bollingerUpperSeries,
-                candles,
-                series.upper
-            );
-
-
-            setLineSeriesData(
-                bollingerLowerSeries,
-                candles,
-                series.lower
-            );
-        }
-    }
-}
-
-
-/* ============================================================
-   GENERIC LINE SERIES HELPER
-   ============================================================ */
-
-function setLineSeriesData(
-    series,
-    candles,
-    values
-) {
-
-    if (
-        !series ||
-        !Array.isArray(values)
-    ) {
-        return;
-    }
-
-
-    const data = [];
-
-
-    const length =
-        Math.min(
-            candles.length,
-            values.length
+        setLineSeriesData(
+            bollingerMiddleSeries,
+            candles,
+            series.middle
         );
 
 
-    for (
-        let index = 0;
-        index < length;
-        index++
-    ) {
-
-        const value =
-            values[index];
-
-
-        if (
-            value === null ||
-            value === undefined
-        ) {
-            continue;
-        }
-
-
-        const numericValue =
-            Number(value);
-
-
-        if (
-            !Number.isFinite(
-                numericValue
-            )
-        ) {
-            continue;
-        }
-
-
-        let timestamp =
-            Number(
-                candles[index]
-                    .timestamp
-            );
-
-
-        if (
-            timestamp >
-            10_000_000_000
-        ) {
-
-            timestamp =
-                Math.floor(
-                    timestamp / 1000
-                );
-        }
-
-
-        if (
-            !Number.isFinite(
-                timestamp
-            )
-        ) {
-            continue;
-        }
-
-
-        data.push({
-
-            time:
-                timestamp,
-
-            value:
-                numericValue,
-        });
-    }
-
-
-    series.setData(
-        data
-    );
-}
-
-
-/* ============================================================
-   RESIZE
-   ============================================================ */
-
-function resizeChart() {
-
-    if (!priceChart) {
-        return;
-    }
-
-
-    const container =
-        document.getElementById(
-            "chart-container"
-        );
-
-
-    if (!container) {
-        return;
-    }
-
-
-    priceChart.resize(
-        container.clientWidth,
-        container.clientHeight
-    );
-                   }
+        /* ----------------------------------------------------
+           UPPER
+           ---------------------------------------------------- */
+                                       
