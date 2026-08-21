@@ -172,8 +172,8 @@ function initializeChart() {
 
 
                         /*
-                         * Low-priced cryptocurrencies
-                         * such as DOGE need more decimals.
+                         * Low-priced assets such as
+                         * DOGE need additional decimals.
                          */
 
                         if (
@@ -183,6 +183,14 @@ function initializeChart() {
 
                             maximumFractionDigits =
                                 6;
+
+                        } else if (
+                            numericPrice > 0 &&
+                            numericPrice < 100
+                        ) {
+
+                            maximumFractionDigits =
+                                4;
                         }
 
 
@@ -431,13 +439,6 @@ function initializeChart() {
    RESET CHART DATA
    ============================================================ */
 
-/*
- * Clears all current market data from the chart.
- *
- * This is intentionally outside initializeChart()
- * so app.js can call it when the cryptocurrency changes.
- */
-
 function resetChartData() {
 
     if (candleSeries) {
@@ -456,52 +457,7 @@ function resetChartData() {
     }
 
 
-    if (sma20Series) {
-
-        sma20Series.setData(
-            []
-        );
-    }
-
-
-    if (sma50Series) {
-
-        sma50Series.setData(
-            []
-        );
-    }
-
-
-    if (ema20Series) {
-
-        ema20Series.setData(
-            []
-        );
-    }
-
-
-    if (bollingerMiddleSeries) {
-
-        bollingerMiddleSeries.setData(
-            []
-        );
-    }
-
-
-    if (bollingerUpperSeries) {
-
-        bollingerUpperSeries.setData(
-            []
-        );
-    }
-
-
-    if (bollingerLowerSeries) {
-
-        bollingerLowerSeries.setData(
-            []
-        );
-    }
+    clearIndicatorSeries();
 
 
     if (priceChart) {
@@ -539,6 +495,16 @@ function updateChart(
     }
 
 
+    /*
+     * Clear previous indicator data first.
+     *
+     * This is important when switching from
+     * BTC to DOGE or from DOGE back to BTC.
+     */
+
+    clearIndicatorSeries();
+
+
     /* ========================================================
        CANDLE DATA
        ======================================================== */
@@ -553,11 +519,6 @@ function updateChart(
                             candle.timestamp
                         );
 
-
-                    /*
-                     * Lightweight Charts expects
-                     * Unix timestamps in seconds.
-                     */
 
                     if (
                         timestamp >
@@ -631,6 +592,12 @@ function updateChart(
             );
 
 
+    if (!chartData.length) {
+
+        return;
+    }
+
+
     /* ========================================================
        REMOVE DUPLICATES
        ======================================================== */
@@ -666,9 +633,9 @@ function updateChart(
     }
 
 
-    /* --------------------------------------------------------
+    /* ========================================================
        CHRONOLOGICAL ORDER
-       -------------------------------------------------------- */
+       ======================================================== */
 
     uniqueData.sort(
         (
@@ -679,9 +646,9 @@ function updateChart(
     );
 
 
-    /* --------------------------------------------------------
+    /* ========================================================
        SET CANDLES
-       -------------------------------------------------------- */
+       ======================================================== */
 
     candleSeries.setData(
         uniqueData
@@ -721,6 +688,17 @@ function updateChart(
                         );
 
 
+                    const open =
+                        Number(
+                            candle.open
+                        );
+
+                    const close =
+                        Number(
+                            candle.close
+                        );
+
+
                     if (
                         !Number.isFinite(
                             timestamp
@@ -733,17 +711,6 @@ function updateChart(
 
                         return null;
                     }
-
-
-                    const open =
-                        Number(
-                            candle.open
-                        );
-
-                    const close =
-                        Number(
-                            candle.close
-                        );
 
 
                     return {
@@ -785,29 +752,12 @@ function updateChart(
             candles,
             indicators
         );
-
-    } else {
-
-        /*
-         * If indicators are unavailable,
-         * clear old indicator lines.
-         */
-
-        clearIndicatorSeries();
     }
 
 
     /* ========================================================
-       FIT NEW MARKET DATA
+       AUTO SCALE
        ======================================================== */
-
-    /*
-     * This is important when switching from
-     * BTC (~100,000 USD) to DOGE (~0.07 USD).
-     *
-     * The chart recalculates its visible range
-     * using the new asset's actual price.
-     */
 
     priceChart
         .priceScale("right")
@@ -816,9 +766,35 @@ function updateChart(
         });
 
 
+    /* ========================================================
+       FIT CONTENT
+       ======================================================== */
+
     priceChart
         .timeScale()
         .fitContent();
+
+
+    /*
+     * Apply autoscale once more after the
+     * visible range has changed.
+     */
+
+    requestAnimationFrame(
+        () => {
+
+            if (!priceChart) {
+                return;
+            }
+
+
+            priceChart
+                .priceScale("right")
+                .applyOptions({
+                    autoScale: true,
+                });
+        }
+    );
 }
 
 
@@ -862,20 +838,12 @@ function updateIndicatorSeries(
             movingAverages.series;
 
 
-        /* ----------------------------------------------------
-           SMA 20
-           ---------------------------------------------------- */
-
         setLineSeriesData(
             sma20Series,
             candles,
             maSeries.sma_20
         );
 
-
-        /* ----------------------------------------------------
-           SMA 50
-           ---------------------------------------------------- */
 
         setLineSeriesData(
             sma50Series,
@@ -884,40 +852,12 @@ function updateIndicatorSeries(
         );
 
 
-        /* ----------------------------------------------------
-           EMA 20
-           ---------------------------------------------------- */
-
         setLineSeriesData(
             ema20Series,
             candles,
             maSeries.ema_20
         );
 
-    } else {
-
-        if (sma20Series) {
-
-            sma20Series.setData(
-                []
-            );
-        }
-
-
-        if (sma50Series) {
-
-            sma50Series.setData(
-                []
-            );
-        }
-
-
-        if (ema20Series) {
-
-            ema20Series.setData(
-                []
-            );
-        }
     }
 
 
@@ -939,10 +879,6 @@ function updateIndicatorSeries(
                 .series;
 
 
-        /* ----------------------------------------------------
-           MIDDLE
-           ---------------------------------------------------- */
-
         setLineSeriesData(
             bollingerMiddleSeries,
             candles,
@@ -950,7 +886,272 @@ function updateIndicatorSeries(
         );
 
 
-        /* ----------------------------------------------------
-           UPPER
-           ---------------------------------------------------- */
-                                       
+        setLineSeriesData(
+            bollingerUpperSeries,
+            candles,
+            series.upper
+        );
+
+
+        setLineSeriesData(
+            bollingerLowerSeries,
+            candles,
+            series.lower
+        );
+    }
+}
+
+
+/* ============================================================
+   CLEAR INDICATOR SERIES
+   ============================================================ */
+
+function clearIndicatorSeries() {
+
+    if (sma20Series) {
+
+        sma20Series.setData(
+            []
+        );
+    }
+
+
+    if (sma50Series) {
+
+        sma50Series.setData(
+            []
+        );
+    }
+
+
+    if (ema20Series) {
+
+        ema20Series.setData(
+            []
+        );
+    }
+
+
+    if (bollingerMiddleSeries) {
+
+        bollingerMiddleSeries.setData(
+            []
+        );
+    }
+
+
+    if (bollingerUpperSeries) {
+
+        bollingerUpperSeries.setData(
+            []
+        );
+    }
+
+
+    if (bollingerLowerSeries) {
+
+        bollingerLowerSeries.setData(
+            []
+        );
+    }
+}
+
+
+/* ============================================================
+   GENERIC LINE SERIES HELPER
+   ============================================================ */
+
+function setLineSeriesData(
+    series,
+    candles,
+    values
+) {
+
+    if (
+        !series ||
+        !Array.isArray(candles) ||
+        !Array.isArray(values)
+    ) {
+
+        return;
+    }
+
+
+    const data = [];
+
+
+    const length =
+        Math.min(
+            candles.length,
+            values.length
+        );
+
+
+    for (
+        let index = 0;
+        index < length;
+        index++
+    ) {
+
+        const value =
+            values[index];
+
+
+        if (
+            value === null ||
+            value === undefined
+        ) {
+
+            continue;
+        }
+
+
+        const numericValue =
+            Number(value);
+
+
+        if (
+            !Number.isFinite(
+                numericValue
+            )
+        ) {
+
+            continue;
+        }
+
+
+        let timestamp =
+            Number(
+                candles[index]
+                    .timestamp
+            );
+
+
+        if (
+            timestamp >
+            10_000_000_000
+        ) {
+
+            timestamp =
+                Math.floor(
+                    timestamp / 1000
+                );
+        }
+
+
+        if (
+            !Number.isFinite(
+                timestamp
+            )
+        ) {
+
+            continue;
+        }
+
+
+        data.push({
+
+            time:
+                timestamp,
+
+            value:
+                numericValue,
+        });
+    }
+
+
+    /*
+     * Lightweight Charts expects
+     * chronological and unique timestamps.
+     */
+
+    const uniqueData = [];
+
+    const seen =
+        new Set();
+
+
+    for (
+        const item of data
+    ) {
+
+        if (
+            seen.has(
+                item.time
+            )
+        ) {
+
+            continue;
+        }
+
+
+        seen.add(
+            item.time
+        );
+
+
+        uniqueData.push(
+            item
+        );
+    }
+
+
+    uniqueData.sort(
+        (
+            a,
+            b
+        ) =>
+            a.time - b.time
+    );
+
+
+    series.setData(
+        uniqueData
+    );
+}
+
+
+/* ============================================================
+   RESIZE
+   ============================================================ */
+
+function resizeChart() {
+
+    if (!priceChart) {
+        return;
+    }
+
+
+    const container =
+        document.getElementById(
+            "chart-container"
+        );
+
+
+    if (!container) {
+        return;
+    }
+
+
+    const width =
+        container.clientWidth;
+
+
+    const height =
+        container.clientHeight;
+
+
+    if (
+        width <= 0 ||
+        height <= 0
+    ) {
+
+        return;
+    }
+
+
+    priceChart.resize(
+        width,
+        height
+    );
+}
