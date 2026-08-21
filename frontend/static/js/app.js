@@ -181,11 +181,98 @@ function analyzeSymbol() {
     }
 
 
+    /*
+     * If the symbol changed, clear the
+     * previous chart data first.
+     *
+     * This prevents the old crypto from
+     * visually remaining while the new
+     * data is loading.
+     */
+
+    const previousSymbol =
+        AppState.symbol;
+
+
     AppState.symbol =
         symbol;
 
 
+    if (
+        previousSymbol !== symbol
+    ) {
+
+        resetChartView();
+
+    }
+
+
     loadAnalysis();
+
+}
+
+
+/* ============================================================
+   RESET CHART VIEW
+   ============================================================ */
+
+function resetChartView() {
+
+    if (
+        typeof priceChart ===
+        "undefined"
+        ||
+        !priceChart
+    ) {
+        return;
+    }
+
+
+    /*
+     * Remove old data from all
+     * chart series.
+     */
+
+    if (candleSeries) {
+        candleSeries.setData([]);
+    }
+
+    if (volumeSeries) {
+        volumeSeries.setData([]);
+    }
+
+    if (sma20Series) {
+        sma20Series.setData([]);
+    }
+
+    if (sma50Series) {
+        sma50Series.setData([]);
+    }
+
+    if (ema20Series) {
+        ema20Series.setData([]);
+    }
+
+    if (bollingerMiddleSeries) {
+        bollingerMiddleSeries.setData([]);
+    }
+
+    if (bollingerUpperSeries) {
+        bollingerUpperSeries.setData([]);
+    }
+
+    if (bollingerLowerSeries) {
+        bollingerLowerSeries.setData([]);
+    }
+
+
+    /*
+     * Reset the visible time range.
+     */
+
+    priceChart
+        .timeScale()
+        .fitContent();
 
 }
 
@@ -287,8 +374,13 @@ async function loadAnalysis() {
         AppState.candles =
             data.candles || [];
 
+        /*
+         * Keep indicators as null when
+         * the API does not provide them.
+         */
+
         AppState.indicators =
-            data.indicators || {};
+            data.indicators || null;
 
 
         /* ----------------------------------------------------
@@ -305,7 +397,7 @@ async function loadAnalysis() {
            ---------------------------------------------------- */
 
         renderIndicators(
-            data.indicators
+            data.indicators || null
         );
 
 
@@ -314,9 +406,41 @@ async function loadAnalysis() {
            ---------------------------------------------------- */
 
         updateChart(
-            data.candles || []
+            data.candles || [],
             data.indicators || null
         );
+
+
+        /* ----------------------------------------------------
+           FIT NEW CRYPTO SCALE
+           ---------------------------------------------------- */
+
+        /*
+         * After changing from something like BTC to DOGE,
+         * the chart must adapt to the new price range.
+         *
+         * requestAnimationFrame ensures the chart has already
+         * received the new series data before fitting it.
+         */
+
+        if (
+            typeof priceChart !==
+            "undefined"
+            &&
+            priceChart
+        ) {
+
+            requestAnimationFrame(
+                () => {
+
+                    priceChart
+                        .timeScale()
+                        .fitContent();
+
+                }
+            );
+
+        }
 
 
         /* ----------------------------------------------------
@@ -737,9 +861,8 @@ function formatPrice(
 
 
     /*
-     * Crypto prices can have
-     * many decimals, especially
-     * for low-priced assets.
+     * More precision for cheap
+     * cryptocurrencies such as DOGE.
      */
 
     let maximumFractionDigits =
@@ -871,4 +994,4 @@ function formatLargeNumber(
         Number(value)
     );
 
-                    }
+               }
