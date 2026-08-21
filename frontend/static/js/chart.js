@@ -54,13 +54,47 @@ function initializeChart() {
         return;
     }
 
+function resetChartData() {
+    if (candleSeries) {
+        candleSeries.setData([]);
+    }
+   
+    if (volumeSeries) {
+        volumeSeries.setData([]);
+    }
+
+    if (sma20Series) {
+        sma20Series.setData([])
+    }
+
+    if (sma50Series) {
+        sma50Series.setData([]);
+    }
+
+    if (ema20Series) {
+        ema20Series.setData([]);
+    }
+
+    if (bollingerMiddleSeries) {
+        bollingerMiddleSeries.setData([]);
+    }
+
+    if (bollingerUpperSeries) {
+        bollingerUpperSeries.setData([]);
+    }
+
+    if (bollingerLowerSeries) {
+        bollingerLowerSeries.setData([]);
+    }
+}
+
 
     container.innerHTML = "";
 
 
     /* ========================================================
        MAIN CHART
-       ======================================================== */
+        re======================================================== */
 
     priceChart =
         LightweightCharts.createChart(
