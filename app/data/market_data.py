@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import asyncio
 
 import httpx
 
@@ -29,6 +30,19 @@ HEADERS = {
     "Accept": "application/json",
     "User-Agent": "Cryptolytics/0.5",
 }
+
+
+# ============================================================
+# RATE LIMIT / RETRY
+# ============================================================
+
+MAX_RETRIES = 3
+
+RETRY_DELAYS = (
+    2,
+    5,
+    10,
+)
 
 
 # ============================================================
@@ -79,46 +93,130 @@ async def _get(
     timeout: float = REQUEST_TIMEOUT,
 ) -> Any:
 
-    try:
+    last_error = None
 
-        async with httpx.AsyncClient(
-            timeout=timeout,
-            headers=HEADERS,
-        ) as client:
+    for attempt in range(
+        MAX_RETRIES + 1
+    ):
 
-            response = await client.get(
-                url,
-                params=params,
+        try:
+
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                headers=HEADERS,
+            ) as client:
+
+                response = await client.get(
+                    url,
+                    params=params,
+                )
+
+                # ------------------------------------------------
+                # RATE LIMIT
+                # ------------------------------------------------
+
+                if response.status_code == 429:
+
+                    last_error = RuntimeError(
+                        "Market data provider "
+                        "rate limit reached."
+                    )
+
+                    if (
+                        attempt
+                        >= MAX_RETRIES
+                    ):
+
+                        raise last_error
+
+                    delay = (
+                        RETRY_DELAYS[
+                            min(
+                                attempt,
+                                len(
+                                    RETRY_DELAYS
+                                ) - 1,
+                            )
+                        ]
+                    )
+
+                    print(
+                        "[MARKET DATA] "
+                        f"Rate limit reached. "
+                        f"Retrying in {delay}s..."
+                    )
+
+                    await asyncio.sleep(
+                        delay
+                    )
+
+                    continue
+
+                # ------------------------------------------------
+                # OTHER HTTP ERRORS
+                # ------------------------------------------------
+
+                response.raise_for_status()
+
+                return response.json()
+
+        except httpx.HTTPStatusError as error:
+
+            status_code = (
+                error.response.status_code
             )
-
-            response.raise_for_status()
-
-            return response.json()
-
-    except httpx.HTTPStatusError as error:
-
-        status_code = (
-            error.response.status_code
-        )
-
-        if status_code == 429:
 
             raise RuntimeError(
                 "Market data provider "
-                "rate limit reached."
+                f"returned HTTP {status_code}."
             ) from error
 
-        raise RuntimeError(
-            "Market data provider "
-            f"returned HTTP {status_code}."
-        ) from error
+        except httpx.RequestError as error:
 
-    except httpx.RequestError as error:
+            last_error = error
+
+            if (
+                attempt
+                >= MAX_RETRIES
+            ):
+
+                raise RuntimeError(
+                    "Unable to connect to "
+                    "market data provider."
+                ) from error
+
+            delay = (
+                RETRY_DELAYS[
+                    min(
+                        attempt,
+                        len(
+                            RETRY_DELAYS
+                        ) - 1,
+                    )
+                ]
+            )
+
+            print(
+                "[MARKET DATA] "
+                f"Connection error. "
+                f"Retrying in {delay}s..."
+            )
+
+            await asyncio.sleep(
+                delay
+            )
+
+    if last_error:
 
         raise RuntimeError(
-            "Unable to connect to "
-            "market data provider."
-        ) from error
+            "Unable to retrieve "
+            "market data."
+        ) from last_error
+
+    raise RuntimeError(
+        "Unable to retrieve "
+        "market data."
+    )
 
 
 # ============================================================
@@ -135,6 +233,10 @@ async def get_market_snapshot(
         .strip()
     )
 
+    # --------------------------------------------------------
+    # CACHE
+    # --------------------------------------------------------
+
     cache_key = (
         f"market:{normalized}"
     )
@@ -144,11 +246,20 @@ async def get_market_snapshot(
     )
 
     if cached is not None:
+
         return cached
+
+    # --------------------------------------------------------
+    # COIN ID
+    # --------------------------------------------------------
 
     coin_id = get_coin_id(
         normalized
     )
+
+    # --------------------------------------------------------
+    # REQUEST
+    # --------------------------------------------------------
 
     url = (
         f"{COINGECKO_URL}/coins/markets"
@@ -174,6 +285,10 @@ async def get_market_snapshot(
         )
 
     coin = data[0]
+
+    # --------------------------------------------------------
+    # BUILD SNAPSHOT
+    # --------------------------------------------------------
 
     try:
 
@@ -217,6 +332,10 @@ async def get_market_snapshot(
             "received from provider."
         ) from error
 
+    # --------------------------------------------------------
+    # SAVE TO CACHE
+    # --------------------------------------------------------
+
     market_cache.set(
         cache_key,
         snapshot,
@@ -234,6 +353,10 @@ async def get_historical_data(
     days: int = 30,
 ) -> list[Candle]:
 
+    # --------------------------------------------------------
+    # VALIDATE DAYS
+    # --------------------------------------------------------
+
     if days < 1:
 
         raise ValueError(
@@ -246,11 +369,19 @@ async def get_historical_data(
             "days cannot exceed 365."
         )
 
+    # --------------------------------------------------------
+    # NORMALIZE SYMBOL
+    # --------------------------------------------------------
+
     normalized = (
         symbol
         .upper()
         .strip()
     )
+
+    # --------------------------------------------------------
+    # CACHE
+    # --------------------------------------------------------
 
     cache_key = (
         f"historical:{normalized}:{days}"
@@ -261,11 +392,20 @@ async def get_historical_data(
     )
 
     if cached is not None:
+
         return cached
+
+    # --------------------------------------------------------
+    # COIN ID
+    # --------------------------------------------------------
 
     coin_id = get_coin_id(
         normalized
     )
+
+    # --------------------------------------------------------
+    # OHLC ENDPOINT
+    # --------------------------------------------------------
 
     ohlc_url = (
         f"{COINGECKO_URL}/coins/"
@@ -276,6 +416,10 @@ async def get_historical_data(
         "vs_currency": "usd",
         "days": days,
     }
+
+    # --------------------------------------------------------
+    # FETCH OHLC
+    # --------------------------------------------------------
 
     ohlc_data = await _get(
         ohlc_url,
@@ -290,6 +434,10 @@ async def get_historical_data(
             f"for {normalized}."
         )
 
+    # --------------------------------------------------------
+    # BUILD CANDLES
+    # --------------------------------------------------------
+
     candles: list[Candle] = []
 
     for row in ohlc_data:
@@ -298,10 +446,16 @@ async def get_historical_data(
             row,
             list,
         ):
+
             continue
 
         if len(row) < 5:
+
             continue
+
+        # ----------------------------------------------------
+        # PARSE OHLC
+        # ----------------------------------------------------
 
         try:
 
@@ -332,28 +486,40 @@ async def get_historical_data(
 
             continue
 
+        # ----------------------------------------------------
+        # BASIC VALIDATION
+        # ----------------------------------------------------
+
         if (
-            open_price <= 0
-            or high <= 0
-            or low <= 0
-            or close <= 0
+            open_price < 0
+            or high < 0
+            or low < 0
+            or close < 0
         ):
+
             continue
 
         if high < low:
+
             continue
 
         if (
             open_price > high
             or open_price < low
         ):
+
             continue
 
         if (
             close > high
             or close < low
         ):
+
             continue
+
+        # ----------------------------------------------------
+        # CREATE CANDLE
+        # ----------------------------------------------------
 
         candles.append(
             Candle(
@@ -366,6 +532,10 @@ async def get_historical_data(
             )
         )
 
+    # --------------------------------------------------------
+    # VALIDATE RESULT
+    # --------------------------------------------------------
+
     if not candles:
 
         raise ValueError(
@@ -373,18 +543,31 @@ async def get_historical_data(
             "returned by the provider."
         )
 
+    # --------------------------------------------------------
+    # SORT CHRONOLOGICALLY
+    # --------------------------------------------------------
+
     candles.sort(
         key=lambda candle:
         candle.timestamp
     )
 
-    unique_candles: list[Candle] = []
+    # --------------------------------------------------------
+    # REMOVE DUPLICATES
+    # --------------------------------------------------------
+
+    unique_candles: list[
+        Candle
+    ] = []
 
     seen_timestamps: set[int] = set()
 
     for candle in candles:
 
-        if candle.timestamp in seen_timestamps:
+        if candle.timestamp in (
+            seen_timestamps
+        ):
+
             continue
 
         seen_timestamps.add(
@@ -394,6 +577,10 @@ async def get_historical_data(
         unique_candles.append(
             candle
         )
+
+    # --------------------------------------------------------
+    # SAVE TO CACHE
+    # --------------------------------------------------------
 
     historical_cache.set(
         cache_key,
