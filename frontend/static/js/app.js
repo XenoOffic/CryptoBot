@@ -315,6 +315,7 @@ async function loadAnalysis() {
 
         updateChart(
             data.candles || []
+            data.indicators || null
         );
 
 
