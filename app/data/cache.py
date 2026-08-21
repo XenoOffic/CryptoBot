@@ -69,9 +69,9 @@ class MemoryCache:
 
 
 market_cache = MemoryCache(
-    ttl_seconds=60
+    ttl_seconds=300
 )
 
 historical_cache = MemoryCache(
-    ttl_seconds=300
+    ttl_seconds=900
 )
