@@ -135,10 +135,6 @@ async def get_market_snapshot(
         .strip()
     )
 
-    # --------------------------------------------------------
-    # CACHE
-    # --------------------------------------------------------
-
     cache_key = (
         f"market:{normalized}"
     )
@@ -150,17 +146,9 @@ async def get_market_snapshot(
     if cached is not None:
         return cached
 
-    # --------------------------------------------------------
-    # COIN ID
-    # --------------------------------------------------------
-
     coin_id = get_coin_id(
         normalized
     )
-
-    # --------------------------------------------------------
-    # REQUEST
-    # --------------------------------------------------------
 
     url = (
         f"{COINGECKO_URL}/coins/markets"
@@ -186,10 +174,6 @@ async def get_market_snapshot(
         )
 
     coin = data[0]
-
-    # --------------------------------------------------------
-    # BUILD SNAPSHOT
-    # --------------------------------------------------------
 
     try:
 
@@ -233,10 +217,6 @@ async def get_market_snapshot(
             "received from provider."
         ) from error
 
-    # --------------------------------------------------------
-    # SAVE TO CACHE
-    # --------------------------------------------------------
-
     market_cache.set(
         cache_key,
         snapshot,
@@ -246,210 +226,13 @@ async def get_market_snapshot(
 
 
 # ============================================================
-# HISTORICAL VOLUME
-# ============================================================
-
-async def get_historical_volume(
-    coin_id: str,
-    days: int,
-) -> list[tuple[int, float]]:
-
-    url = (
-        f"{COINGECKO_URL}/coins/"
-        f"{coin_id}/market_chart"
-    )
-
-    params = {
-        "vs_currency": "usd",
-        "days": days,
-    }
-
-    data = await _get(
-        url,
-        params,
-        timeout=20,
-    )
-
-    if not isinstance(
-        data,
-        dict,
-    ):
-
-        return []
-
-    raw_volumes = data.get(
-        "total_volumes",
-        [],
-    )
-
-    if not isinstance(
-        raw_volumes,
-        list,
-    ):
-
-        return []
-
-    volumes: list[
-        tuple[int, float]
-    ] = []
-
-    for row in raw_volumes:
-
-        if not isinstance(
-            row,
-            list,
-        ):
-
-            continue
-
-        if len(row) < 2:
-            continue
-
-        try:
-
-            timestamp = int(
-                row[0]
-            )
-
-            volume = float(
-                row[1]
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ):
-
-            continue
-
-        if timestamp <= 0:
-            continue
-
-        if volume < 0:
-            continue
-
-        volumes.append(
-            (
-                timestamp,
-                volume,
-            )
-        )
-
-    volumes.sort(
-        key=lambda item:
-        item[0]
-    )
-
-    return volumes
-
-
-# ============================================================
-# FIND CLOSEST VOLUME
-# ============================================================
-
-def _find_closest_volume(
-    timestamp: int,
-    volumes: list[tuple[int, float]],
-) -> float:
-
-    if not volumes:
-        return 0.0
-
-    # --------------------------------------------------------
-    # Normalize candle timestamp to milliseconds.
-    # --------------------------------------------------------
-
-    candle_timestamp = timestamp
-
-    if candle_timestamp < 10_000_000_000:
-
-        candle_timestamp *= 1000
-
-    # --------------------------------------------------------
-    # Binary search.
-    # --------------------------------------------------------
-
-    left = 0
-    right = len(volumes) - 1
-
-    while left <= right:
-
-        middle = (
-            left + right
-        ) // 2
-
-        middle_timestamp = (
-            volumes[middle][0]
-        )
-
-        if (
-            middle_timestamp
-            == candle_timestamp
-        ):
-
-            return volumes[
-                middle
-            ][1]
-
-        if (
-            middle_timestamp
-            < candle_timestamp
-        ):
-
-            left = middle + 1
-
-        else:
-
-            right = middle - 1
-
-    # --------------------------------------------------------
-    # Compare nearest candidates.
-    # --------------------------------------------------------
-
-    candidates = []
-
-    if 0 <= right < len(volumes):
-
-        candidates.append(
-            volumes[right]
-        )
-
-    if 0 <= left < len(volumes):
-
-        candidates.append(
-            volumes[left]
-        )
-
-    if not candidates:
-
-        return 0.0
-
-    closest = min(
-        candidates,
-        key=lambda item:
-        abs(
-            item[0]
-            - candle_timestamp
-        ),
-    )
-
-    return float(
-        closest[1]
-    )
-
-
-# ============================================================
-# HISTORICAL OHLCV DATA
+# HISTORICAL OHLC DATA
 # ============================================================
 
 async def get_historical_data(
     symbol: str,
     days: int = 30,
 ) -> list[Candle]:
-
-    # --------------------------------------------------------
-    # VALIDATE DAYS
-    # --------------------------------------------------------
 
     if days < 1:
 
@@ -463,19 +246,11 @@ async def get_historical_data(
             "days cannot exceed 365."
         )
 
-    # --------------------------------------------------------
-    # NORMALIZE SYMBOL
-    # --------------------------------------------------------
-
     normalized = (
         symbol
         .upper()
         .strip()
     )
-
-    # --------------------------------------------------------
-    # CACHE
-    # --------------------------------------------------------
 
     cache_key = (
         f"historical:{normalized}:{days}"
@@ -488,17 +263,9 @@ async def get_historical_data(
     if cached is not None:
         return cached
 
-    # --------------------------------------------------------
-    # COIN ID
-    # --------------------------------------------------------
-
     coin_id = get_coin_id(
         normalized
     )
-
-    # --------------------------------------------------------
-    # OHLC ENDPOINT
-    # --------------------------------------------------------
 
     ohlc_url = (
         f"{COINGECKO_URL}/coins/"
@@ -509,10 +276,6 @@ async def get_historical_data(
         "vs_currency": "usd",
         "days": days,
     }
-
-    # --------------------------------------------------------
-    # FETCH OHLC
-    # --------------------------------------------------------
 
     ohlc_data = await _get(
         ohlc_url,
@@ -527,32 +290,6 @@ async def get_historical_data(
             f"for {normalized}."
         )
 
-    # --------------------------------------------------------
-    # FETCH VOLUME
-    # --------------------------------------------------------
-
-    try:
-
-        volume_data = (
-            await get_historical_volume(
-                coin_id,
-                days,
-            )
-        )
-
-    except RuntimeError:
-
-        # ----------------------------------------------------
-        # OHLC data is still usable if volume
-        # cannot be retrieved.
-        # ----------------------------------------------------
-
-        volume_data = []
-
-    # --------------------------------------------------------
-    # BUILD CANDLES
-    # --------------------------------------------------------
-
     candles: list[Candle] = []
 
     for row in ohlc_data:
@@ -561,15 +298,10 @@ async def get_historical_data(
             row,
             list,
         ):
-
             continue
 
         if len(row) < 5:
             continue
-
-        # ----------------------------------------------------
-        # PARSE OHLC
-        # ----------------------------------------------------
 
         try:
 
@@ -600,17 +332,12 @@ async def get_historical_data(
 
             continue
 
-        # ----------------------------------------------------
-        # BASIC VALIDATION
-        # ----------------------------------------------------
-
         if (
             open_price <= 0
             or high <= 0
             or low <= 0
             or close <= 0
         ):
-
             continue
 
         if high < low:
@@ -620,60 +347,24 @@ async def get_historical_data(
             open_price > high
             or open_price < low
         ):
-
             continue
 
         if (
             close > high
             or close < low
         ):
-
-            continue
-
-        # ----------------------------------------------------
-        # MATCH VOLUME
-        # ----------------------------------------------------
-
-        volume = _find_closest_volume(
-            timestamp,
-            volume_data,
-        )
-
-        # ----------------------------------------------------
-        # CREATE CANDLE
-        # ----------------------------------------------------
-
-        try:
-
-            candle = Candle(
-
-                timestamp=timestamp,
-
-                open=open_price,
-
-                high=high,
-
-                low=low,
-
-                close=close,
-
-                volume=volume,
-            )
-
-        except (
-            TypeError,
-            ValueError,
-        ):
-
             continue
 
         candles.append(
-            candle
+            Candle(
+                timestamp=timestamp,
+                open=open_price,
+                high=high,
+                low=low,
+                close=close,
+                volume=0.0,
+            )
         )
-
-    # --------------------------------------------------------
-    # VALIDATE RESULT
-    # --------------------------------------------------------
 
     if not candles:
 
@@ -682,31 +373,18 @@ async def get_historical_data(
             "returned by the provider."
         )
 
-    # --------------------------------------------------------
-    # SORT CHRONOLOGICALLY
-    # --------------------------------------------------------
-
     candles.sort(
         key=lambda candle:
         candle.timestamp
     )
 
-    # --------------------------------------------------------
-    # REMOVE DUPLICATES
-    # --------------------------------------------------------
-
-    unique_candles: list[
-        Candle
-    ] = []
+    unique_candles: list[Candle] = []
 
     seen_timestamps: set[int] = set()
 
     for candle in candles:
 
-        if candle.timestamp in (
-            seen_timestamps
-        ):
-
+        if candle.timestamp in seen_timestamps:
             continue
 
         seen_timestamps.add(
@@ -716,10 +394,6 @@ async def get_historical_data(
         unique_candles.append(
             candle
         )
-
-    # --------------------------------------------------------
-    # SAVE TO CACHE
-    # --------------------------------------------------------
 
     historical_cache.set(
         cache_key,
